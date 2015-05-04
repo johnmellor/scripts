@@ -54,6 +54,33 @@ alias ll='ls -lhF --color=auto'
 alias gst='git status'
 alias gbv='git branch -vv'
 
+git-replace() {
+    if (( $# < 2 )); then
+        echo "USAGE: git-replace [-i] <from_regex> <to_text>"
+        return 1
+    fi
+    while [[ $1 == -i || $1 == --no-index ]]; do
+        if [[ $1 == -i ]]; then
+            local grepignorecase=-i
+            local perlignorecase=i
+            shift
+        fi
+        if [[ $1 == --no-index ]]; then
+            local noindex=--no-index
+            shift
+        fi
+    done
+    # Cygwin and MSYS don't support perl -i without backup :-|
+    git grep $noindex $grepignorecase -lP "$1" | while read file; do
+        perl -i.gitreplacebak -pe "s%$1%$2%g$perlignorecase" "$file" &&
+        rm "$file.gitreplacebak"
+    done
+}
+
+raw-replace() {
+    git-replace --no-index "$@"
+}
+
 
 # ALIAS COMPLETION
 
