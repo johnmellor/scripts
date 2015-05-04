@@ -1,3 +1,12 @@
+# CONFIG
+
+# Make bash append rather than overwrite the history on disk
+shopt -s histappend
+
+# Whenever displaying the prompt, write the previous line to disk
+export PROMPT_COMMAND="history -a"
+
+
 # HELPERS
 
 __scripts_directory="${BASH_SOURCE%/*}"
