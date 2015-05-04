@@ -33,6 +33,8 @@ __source_relative git-completion.bash
 
 # MISC
 
+export EDITOR='subl --wait'
+
 alias l='ls -hF --color=auto'
 alias la='ls -AhF --color=auto'
 alias ll='ls -lhF --color=auto'
