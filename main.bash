@@ -64,6 +64,9 @@ __source_relative git-completion.bash
 
 # TODO: These should be run only once.
 git config --global push.default simple
+git config --global diff.tool p4merge
+git config --global merge.tool p4merge
+git config --global mergetool.keepBackup false
 git config --global merge.conflictstyle diff3
 
 alias gst='git status'
@@ -75,6 +78,7 @@ alias gch='git checkout'
 alias glu='glog @{upstream}...'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
+alias grc='git rebase --continue'
 
 git-replace() {
     if (( $# < 2 )); then
@@ -112,6 +116,13 @@ als() {
 }
 
 # <insert new aliases here>
+
+
+# PLATFORM-SPECIFIC
+
+if [[ $OSTYPE == "cygwin" || $OSTYPE == "msys" ]]; then
+    __source_relative windows.bash
+fi
 
 
 # ALIAS COMPLETION
