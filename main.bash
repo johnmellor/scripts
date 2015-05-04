@@ -6,6 +6,29 @@ shopt -s histappend
 # Whenever displaying the prompt, write the previous line to disk
 export PROMPT_COMMAND="history -a"
 
+export EDITOR='subl --wait'
+export LESS='-FRX'
+
+
+# MISC
+
+# Default to human readable figures
+alias df='df -h'
+alias du='du -h'
+
+# Show differences in colour
+#alias grep='grep --color'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+
+alias l='ls -hF --color=auto'
+alias la='ls -AhF --color=auto'
+alias ll='ls -lhF --color=auto'
+
+#alias lr='less -R'
+
+alias gae-up='appcfg.py --oauth2 update .'
+
 
 # HELPERS
 
@@ -39,20 +62,15 @@ export PS1='\[\e[1;34m\]\!\[\e[0m\] \[\e[1;35m\]\w\[\e[0m\] \[\e[1;92m\]$(__git_
 
 __source_relative git-completion.bash
 
-
-# MISC
-
-export EDITOR='subl --wait'
-
-alias l='ls -hF --color=auto'
-alias la='ls -AhF --color=auto'
-alias ll='ls -lhF --color=auto'
-
-
-# GIT
-
 alias gst='git status'
 alias gbv='git branch -vv'
+alias gdu='git diff @{upstream}'
+alias gdus='git diff --stat @{upstream}'
+alias glog='git log --oneline'
+alias gch='git checkout'
+alias glu='glog @{upstream}...'
+alias gcm='git checkout master'
+alias gdc='git diff --cached'
 
 git-replace() {
     if (( $# < 2 )); then
