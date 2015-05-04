@@ -62,6 +62,10 @@ export PS1='\[\e[1;34m\]\!\[\e[0m\] \[\e[1;35m\]\w\[\e[0m\] \[\e[1;92m\]$(__git_
 
 __source_relative git-completion.bash
 
+# TODO: These should be run only once.
+git config --global push.default simple
+git config --global merge.conflictstyle diff3
+
 alias gst='git status'
 alias gbv='git branch -vv'
 alias gdu='git diff @{upstream}'
