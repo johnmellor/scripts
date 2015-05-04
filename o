@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+
+import os
+import platform
+import re
+import subprocess
+import sys
+import webbrowser
+
+def resolve_path(path):
+    # Can't transform absolute paths.
+    if re.match(r'[a-zA-Z]:[/\\]|/', path):
+        return path if os.path.exists(path) else None
+    # Look for relative paths in every parent directory.
+    directory = os.getcwd()
+    while True:
+        if os.path.exists(os.path.join(directory, path)):
+            return os.path.join(directory, path)
+        if os.path.isdir(os.path.join(directory, '.git')):
+            try:
+                proc = subprocess.Popen([
+                    'git', '-c', 'core.quotepath=false', 'ls-files'
+                ], stdout=subprocess.PIPE)
+                for line in iter(proc.stdout.readline, b''):
+                    git_file_path = line.rstrip(b'\n').decode()
+                    if re.match(r'(^|[\\/])%s$' % path, git_file_path):
+                        return os.path.join(directory, git_file_path)
+            except subprocess.CalledProcessError:
+                pass
+        parent = os.path.dirname(directory)
+        if parent == directory:
+            break  # Can't go above the root directory.
+        directory = parent
+    return None
+
+def native_open(path):
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+def open_editor(path, line_col):
+    sys.exit(subprocess.call(['subl', path + line_col]))
+
+def open_file(path, line_col):
+    # html isn't really binary, but it's often useful to view it.
+    safe_binaries = \
+        r'\.(?:html?|zip|jar|tar\.gz|tgz|7z|pdf|jpe?g|png|gif|bmp|tiff?|xcf)$'
+    if re.search(safe_binaries, path):
+        native_open(path)
+    else:
+        open_editor(path, line_col)
+
+if __name__ == '__main__':
+    if len(sys.argv) <= 1 or re.match(r'(?:-h|--help|\/\?)$', sys.argv[1]):
+        raise ("USAGE:\n"
+               "    o path/to/file:line:col (trailing garbage ignored)\n"
+               "    o path/to/folder"
+               "    o http://foo.com")
+    m = re.match(r'(https?://\S+)'  # URL with scheme
+                 r'|([^:].?[^:]*)'  # path, or schemeless URL
+                     r'((?::[0-9]+){0,2})',  # linecol
+                 ' '.join(sys.argv[1:]))
+    if m.group(1):
+        webbrowser.open_new_tab(m.group(1))
+    elif m.group(2):
+        fixed_path = resolve_path(m.group(2))
+        if fixed_path != None and os.path.isfile(fixed_path):
+            open_file(fixed_path, m.group(3))
+        elif fixed_path != None and os.path.isdir(fixed_path):
+            native_open(fixed_path)
+        elif re.match(r'\w+\.\w+($|/)', m.group(2)):
+            # Hope this is a URL
+            webbrowser.open_new_tab('https://' + m.group(2) + m.group(3))
+        else:
+            sys.exit(1)
