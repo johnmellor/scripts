@@ -23,7 +23,7 @@ export GIT_PS1_SHOWUNTRACKEDFILES=1
 # Show how we're tracking relative to upstream
 export GIT_PS1_SHOWUPSTREAM="verbose"
 
-export PS1="\[\e[33m$(tput bold)\]\w\[\e[0m\]$(__git_ps1 ' (%s)')$ "
+export PS1='\[\e[1;34m\]\!\[\e[0m\] \[\e[1;35m\]\u\[\e[0m\]:\[\e[1;35m\]\W\[\e[0m\] \[\e[1;92m\]$(__git_ps1 "(%s)")\[\e[0m\]\$ '
 
 
 # GIT
