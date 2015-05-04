@@ -100,6 +100,16 @@ raw-replace() {
 }
 
 
+# ALIAS CREATION
+
+als() {
+    sed -i "/^# <insert new aliases here>$/i alias $1='$2'" "${__scripts_directory}/main.bash"
+    __source_relative main.bash
+}
+
+# <insert new aliases here>
+
+
 # ALIAS COMPLETION
 
 __source_relative alias_completion.bash
