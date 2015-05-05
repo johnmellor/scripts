@@ -69,7 +69,7 @@ __source_relative git-completion.bash
 
 # TODO: These should be run only once.
 git config --global push.default simple
-git config --global diff.tool p4merge
+git config --global diff.tool meld
 git config --global merge.tool p4merge
 git config --global mergetool.keepBackup false
 git config --global merge.conflictstyle diff3
