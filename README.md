@@ -8,7 +8,7 @@ $ mkdir ~/Code
 $ cd ~/Code
 $ git clone https://github.com/johnmellor/scripts.git
 $ echo 'source ~/Code/scripts/main.bash' >> ~/.bashrc
-$ echo 'export PATH="$PATH:$HOME/Code/scripts"' >> ~/.bash_profile
+$ echo 'export PATH="$PATH:$HOME/Code/scripts/bin"' >> ~/.bash_profile
 ```
 
 ## Tested on
