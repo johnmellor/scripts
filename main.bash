@@ -43,19 +43,24 @@ __source_relative() {
 
 __source_relative git-prompt.sh
 
-# Show if there are unstaged (*) and/or staged (+) changes
+# Show if there are unstaged (*) and/or staged (+) changes.
+# Disable this with `git config bash.showDirtyState false` in large slow repos.
 export GIT_PS1_SHOWDIRTYSTATE=1
 
-# Show if there is anything stashed ($)
+# Show if there is anything stashed ($); disabled as not useful.
 #export GIT_PS1_SHOWSTASHSTATE=1
 
-# Show if there are untracked files (%)
-export GIT_PS1_SHOWUNTRACKEDFILES=1
+# Show if there are untracked files (%); disabled as slow.
+#export GIT_PS1_SHOWUNTRACKEDFILES=1
 
-# Show how we're tracking relative to upstream
-export GIT_PS1_SHOWUPSTREAM="verbose"
+# Show how we're tracking relative to upstream.
+export GIT_PS1_SHOWUPSTREAM='verbose git legacy'
 
-export PS1='\[\e[1;34m\]\!\[\e[0m\] \[\e[1;35m\]\w\[\e[0m\] \[\e[1;92m\]$(__git_ps1 "(%s)")\[\e[0m\]\$ '
+__ansi_green_and_red=("$(echo -e "\e[1;32m")" "$(echo -e "\e[1;31m")")
+
+dayname-2chars() { local dayname=$(date +%a); echo ${dayname:0:2}; }
+
+export PS1='\[${__ansi_green_and_red[$? != 0]}\]$(dayname-2chars)|$(date +%H:%M)\[\e[0m\] \[\e[1;33m\]\w\[\e[0m\] \[\e[1;35m\]$(__git_ps1 "(%s)")\[\e[0m\]\$ '
 
 
 # GIT
