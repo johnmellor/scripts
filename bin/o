@@ -7,6 +7,7 @@ import subprocess
 import sys
 import webbrowser
 
+
 def resolve_path(path):
     # Can't transform absolute paths.
     if re.match(r'[a-zA-Z]:[/\\]|/', path):
@@ -33,6 +34,17 @@ def resolve_path(path):
         directory = parent
     return None
 
+
+def canonicalize_path(path):
+    # I'm not sure why this needs to be called twice, but it does.
+    # In MSYS2 on Windows 7, with a symlink from /home/John/Code to
+    # /c/Users/John/Code, calling os.path.realpath('bin') whilst the current
+    # directory is /home/John/Code/scripts returns /home/John/Code/scripts/bin
+    # and you have to call os.path.realpath('/home/John/Code/scripts/bin') to
+    # get /c/Users/John/Code/scripts/bin as expected.
+    return os.path.realpath(os.path.realpath(path))
+
+
 def native_open(path):
     if platform.system() == "Windows":
         os.startfile(path)
@@ -41,8 +53,10 @@ def native_open(path):
     else:
         subprocess.Popen(["xdg-open", path])
 
+
 def open_editor(path, line_col):
     sys.exit(subprocess.call(['subl', path + line_col]))
+
 
 def open_file(path, line_col):
     # html isn't really binary, but it's often useful to view it.
@@ -52,6 +66,7 @@ def open_file(path, line_col):
         native_open(path)
     else:
         open_editor(path, line_col)
+
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1 or re.match(r'(?:-h|--help|\/\?)$', sys.argv[1]):
@@ -67,10 +82,14 @@ if __name__ == '__main__':
         webbrowser.open_new_tab(m.group(1))
     elif m.group(2):
         fixed_path = resolve_path(m.group(2))
-        if fixed_path != None and os.path.isfile(fixed_path):
-            open_file(fixed_path, m.group(3))
-        elif fixed_path != None and os.path.isdir(fixed_path):
-            native_open(fixed_path)
+        if fixed_path is not None:
+            fixed_path = canonicalize_path(fixed_path)
+            if os.path.isfile(fixed_path):
+                open_file(fixed_path, m.group(3))
+            elif os.path.isdir(fixed_path):
+                native_open(fixed_path)
+            else:
+                sys.exit(1)
         elif re.match(r'\w+\.\w+($|/)', m.group(2)):
             # Hope this is a URL
             webbrowser.open_new_tab('https://' + m.group(2) + m.group(3))
