@@ -133,6 +133,37 @@ raw-replace() {
     git-replace --no-index "$@"
 }
 
+# Published to http://stackoverflow.com/a/12179492/691281
+# (without the -v argument, for verbose mode)
+# TODO: Doesn't handle 3-way merge diffs.
+diff-lines() {
+    local path=
+    local line=
+    while read; do
+        esc=$'\033'
+        if [[ $REPLY =~ ---\ (a/)?.* ]]; then
+            if [[ $1 == -v ]]; then if [[ -n $path ]]; then echo; fi; echo "$REPLY"; fi
+            continue
+        elif [[ $REPLY =~ \+\+\+\ (b/)?([^[:blank:]$esc]+).* ]]; then
+            if [[ $1 == -v ]]; then echo "$REPLY"; fi
+            path=${BASH_REMATCH[2]}
+        elif [[ $REPLY =~ @@\ -[0-9]+(,[0-9]+)?\ \+([0-9]+)(,[0-9]+)?\ @@.* ]]; then
+            if [[ $1 == -v ]]; then echo "$REPLY"; fi
+            line=${BASH_REMATCH[2]}
+        elif [[ $REPLY =~ ^($esc\[[0-9;]+m)*([\ +-]) ]]; then
+            echo "$path:$line:$REPLY"
+            if [[ ${BASH_REMATCH[2]} != - ]]; then
+                ((line++))
+            fi
+        fi
+    done
+}
+
+# Best combined with the following to make all your grep output colorized:
+# git config --global color.ui always
+diff-grep() { diff-lines -v | color-safe-grep "$@" | less -RFX; }
+alias dg='diff-grep'
+
 
 # ALIAS CREATION
 
