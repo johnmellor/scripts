@@ -179,10 +179,11 @@ diff-lines() {
         fi
     done
 }
+alias dl='diff-lines -v'
 
 # Best combined with the following to make all your grep output colorized:
 # git config --global color.ui always
-diff-grep() { diff-lines -v | color-safe-grep "$@" | less -RFX; }
+diff-grep() { diff-lines -v | color-safe-grep "$@"; }
 alias dg='diff-grep'
 
 diff-replace() {
