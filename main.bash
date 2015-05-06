@@ -27,6 +27,27 @@ alias ll='ls -lhF --color=auto'
 
 #alias lr='less -R'
 
+# Highlights matches within colorized text without stripping colors.
+# Grep may still omit matches if there are color codes within the match itself.
+color-safe-grep() {
+    local ignore_case
+    for arg; do
+        if [[ $arg == -i ]]; then
+            ignore_case=true
+        fi
+        if [[ $arg == -* ]]; then
+            continue
+        fi
+        if [[ -n $ignore_case ]]; then
+            grep -iP --color=never "$@" | perl -pe "s/$arg/$(tput smso)\$&$(tput rmso)/gi"
+        else
+            grep -P --color=never "$@" | perl -pe "s/$arg/$(tput smso)\$&$(tput rmso)/g"
+        fi
+        return $?
+    done
+}
+alias highlight='color-safe-grep -C99999'
+
 alias gae-up='appcfg.py --oauth2 update .'
 
 
