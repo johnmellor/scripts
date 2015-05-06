@@ -100,6 +100,17 @@ git config --global merge.tool p4merge
 git config --global mergetool.keepBackup false
 git config --global merge.conflictstyle diff3
 
+# WARNING: Uses undocumented functions, so may break in future versions of git.
+_complete_git_heads()
+{
+    local cur words cword prev; _get_comp_words_by_ref -n =: cur words cword prev;
+    __gitcomp "$(__git_heads)"
+}
+_complete_git_refs() {
+    local cur words cword prev; _get_comp_words_by_ref -n =: cur words cword prev;
+    __gitcomp "$(__git_refs)"
+}
+
 alias gst='git status'
 alias gbv='git branch -vv'
 alias gdu='git diff @{upstream}'
@@ -110,6 +121,11 @@ alias glu='glog @{upstream}...'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
 alias grc='git rebase --continue'
+
+gdl() {
+    git diff -M --color "$@" | diff-lines -v | less -FRX
+}
+complete -o default -o nospace -F _complete_git_refs gdl
 
 git-replace() {
     if (( $# < 2 )); then
