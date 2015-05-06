@@ -111,6 +111,18 @@ _complete_git_refs() {
     __gitcomp "$(__git_refs)"
 }
 
+git-current-branch() {
+    # Print commit hash if HEAD is detached.
+    git symbolic-ref --short HEAD 2> /dev/null || git rev-parse HEAD
+}
+
+# Outputs upstream branch of $1 or $(git-current-branch).
+gu() {
+    local from; from="${1:-$(git-current-branch)}" &&
+    git rev-parse --abbrev-ref "$from@{upstream}"
+}
+complete -o default -o nospace -F _complete_git_heads gu
+
 alias gst='git status'
 alias gbv='git branch -vv'
 alias gdu='git diff @{upstream}'
