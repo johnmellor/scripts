@@ -27,6 +27,11 @@ alias ll='ls -lhF --color=auto'
 
 #alias lr='less -R'
 
+strip-ansi() {
+    # From http://unix.stackexchange.com/a/4529
+    perl -pe 's/\e\[?.*?[\@-~]//g'
+}
+
 # Highlights matches within colorized text without stripping colors.
 # Grep may still omit matches if there are color codes within the match itself.
 color-safe-grep() {
@@ -163,6 +168,21 @@ diff-lines() {
 # git config --global color.ui always
 diff-grep() { diff-lines -v | color-safe-grep "$@" | less -RFX; }
 alias dg='diff-grep'
+
+diff-replace() {
+    if (( $# != 2 )); then
+        echo 'USAGE: git diff | diff-replace "(hello.*)world" "\1universe"'
+        return 1
+    fi
+    strip-ansi | diff-lines | tac | while read; do
+        if [[ $REPLY =~ ^([^:]+):([0-9]+):\+ ]]; then
+            local file_path=${BASH_REMATCH[1]}
+            local file_line=${BASH_REMATCH[2]}
+            perl -pi -e "s%$1%$2%g if \$. == $file_line" "$file_path"
+        fi
+    done
+}
+alias dr='diff-replace'
 
 
 # ALIAS CREATION
