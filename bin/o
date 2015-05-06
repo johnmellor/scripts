@@ -32,6 +32,9 @@ def resolve_path(path):
         if parent == directory:
             break  # Can't go above the root directory.
         directory = parent
+    # Strip '../' from beginning of path if necessary.
+    if re.match(r'^..[\\/]', path):
+        return resolve_path(path[3:])
     return None
 
 
@@ -89,9 +92,12 @@ if __name__ == '__main__':
             elif os.path.isdir(fixed_path):
                 native_open(fixed_path)
             else:
+                print("Found %s, but it's not a file or directory" % fixed_path,
+                      file=sys.stderr)
                 sys.exit(1)
         elif re.match(r'\w+\.\w+($|/)', m.group(2)):
             # Hope this is a URL
             webbrowser.open_new_tab('https://' + m.group(2) + m.group(3))
         else:
+            print("Couldn't parse as file or URL", file=sys.stderr)
             sys.exit(1)
