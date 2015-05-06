@@ -139,6 +139,37 @@ gdl() {
 }
 complete -o default -o nospace -F _complete_git_refs gdl
 
+# Use case: B's upstream is A_old, and you want to rebase B so it tracks A_new instead.
+# Then run g-rebase-set-upstream B A_new
+g-rebase-set-upstream() {
+    if (( $# < 1 || $# > 2 )); then
+        echo "Usage: ${FUNCNAME[0]} [child_branch] new_parent_branch"
+        return 1
+    fi
+
+    if (( $# == 2 )); then
+        local child_branch="$1"
+        shift
+    else
+        local child_branch; child_branch="$(git-current-branch)" || return 1
+    fi
+    local new_parent_branch="$1"
+    shift
+
+    local old_parent_branch; old_parent_branch="$(gu "$child_branch")" || return 1
+    local ret=0
+    if ! git rebase --onto "$new_parent_branch" "$old_parent_branch" "$child_branch"; then
+        ret=1
+    fi
+    # Set the new upstream even if there is a rebase conflict. Otherwise it's
+    # easy to forget to do so after resolving the conflict.
+    if ! git branch --set-upstream-to="$new_parent_branch" "$child_branch"; then
+        ret=1
+    fi
+    return $ret
+}
+complete -o default -o nospace -F _complete_git_heads g-rebase-set-upstream
+
 git-replace() {
     if (( $# < 2 )); then
         echo "USAGE: git-replace [-i] <from_regex> <to_text>"
