@@ -3,6 +3,7 @@
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import webbrowser
@@ -49,12 +50,15 @@ def canonicalize_path(path):
 
 
 def native_open(path):
-    if platform.system() == "Windows":
+    try:
         os.startfile(path)
-    elif platform.system() == "Darwin":
-        subprocess.Popen(["open", path])
-    else:
-        subprocess.Popen(["xdg-open", path])
+        return
+    except AttributeError:
+        pass
+    for cmd in ['xdg-open', 'open', 'start']:
+        if shutil.which(cmd):
+            subprocess.Popen([cmd, path])
+            return
 
 
 def open_editor(path, line_col):
