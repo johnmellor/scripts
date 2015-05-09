@@ -62,6 +62,18 @@ def native_open(path):
 
 
 def open_editor(path, line_col):
+    if sys.platform == 'msys' and line_col:
+        # This script is running inside MSYS (a posix environment on Windows).
+        # |path| will be something like /c/Users/John/foo.txt and normally when
+        # a program within MSYS runs a program outside MSYS (like subl), any
+        # arguments that are recognized as MSYS absolute paths will be converted
+        # to Windows absolute paths -- i.e. C:/Users/John/foo.txt -- but this
+        # automatic conversion fails if the path has a trailing :line or
+        # :line:col. So instead we force the path to be converted by passing it
+        # as an argument to a program that echoes it back!
+        echo = os.path.join(os.path.dirname(__file__), '..', 'echo_param.bat')
+        path = subprocess.check_output([echo, path]) \
+                         .decode().strip().replace('/', '\\')
     sys.exit(subprocess.call(['subl', path + line_col]))
 
 
