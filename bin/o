@@ -80,7 +80,7 @@ def open_editor(path, line_col):
 def open_file(path, line_col):
     # html isn't really binary, but it's often useful to view it.
     safe_binaries = \
-        r'\.(?:html?|zip|jar|tar\.gz|tgz|7z|pdf|jpe?g|png|gif|bmp|tiff?|xcf)$'
+        r'\.(?:zip|jar|tar\.gz|tgz|7z|pdf|jpe?g|png|gif|bmp|tiff?|xcf)$'
     if re.search(safe_binaries, path):
         native_open(path)
     else:
