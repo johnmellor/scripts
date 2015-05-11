@@ -53,6 +53,7 @@ color-safe-grep() {
 }
 alias highlight='color-safe-grep -C99999'
 
+# Add -A <your-project-id> to override
 alias gae-up='appcfg.py --oauth2 update .'
 
 
@@ -82,7 +83,7 @@ export GIT_PS1_SHOWDIRTYSTATE=1
 # Show how we're tracking relative to upstream.
 export GIT_PS1_SHOWUPSTREAM='verbose git legacy'
 
-__ansi_green_and_red=("$(echo -e "\e[1;32m")" "$(echo -e "\e[1;31m")")
+__ansi_green_and_red=("$(echo $'\e[1;32m')" "$(echo $'\e[1;31m')")
 
 dayname-2chars() { local dayname=$(date +%a); echo ${dayname:0:2}; }
 
