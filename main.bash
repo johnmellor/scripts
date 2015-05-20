@@ -133,6 +133,7 @@ alias gch='git checkout'
 alias glu='glog @{upstream}...'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
+alias gru='git rebase -i @{upstream}'
 alias grc='git rebase --continue'
 
 gdl() {
