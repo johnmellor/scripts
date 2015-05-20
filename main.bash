@@ -126,6 +126,7 @@ complete -o default -o nospace -F _complete_git_heads gu
 
 alias gst='git status'
 alias gbv='git branch -vv'
+alias gds='git diff --stat'
 alias gdu='git diff @{upstream}'
 alias gdus='git diff --stat @{upstream}'
 alias glog='git log --oneline'
