@@ -6,8 +6,8 @@ shopt -s histappend
 # Whenever displaying the prompt, write the previous line to disk
 export PROMPT_COMMAND="history -a"
 
+export PAGER='least'
 export EDITOR='subl --wait'
-export LESS='-FRX'
 
 
 # MISC
@@ -24,8 +24,6 @@ alias fgrep='fgrep --color=auto'
 alias l='ls -hF --color=auto'
 alias la='ls -AhF --color=auto'
 alias ll='ls -lhF --color=auto'
-
-#alias lr='less -R'
 
 strip-ansi() {
     # From http://unix.stackexchange.com/a/4529

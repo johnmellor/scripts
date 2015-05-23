@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# n.b. I posted this script to:
+# http://unix.stackexchange.com/a/205260/85237
+
+# Needed so less doesn't prevent trap from working.
+set -m
+# Keeps this script alive when Ctrl+C is pressed in less,
+# so we still cat and rm $TMPFILE afterwards.
+trap '' EXIT
+
+[[ -n $LINES ]] || LINES=$(tput lines)
+TXTFILE=$(mktemp 2>/dev/null || mktemp -t 'tmp')
+
+tee "$TXTFILE" | LESS=-FR command less "$@"
+
+if (( $(cat "$TXTFILE" | wc -l) < $LINES )); then
+    cat "$TXTFILE"
+fi
+
+rm "$TXTFILE"
