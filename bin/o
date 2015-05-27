@@ -77,6 +77,21 @@ def open_editor(path, line_col):
     sys.exit(subprocess.call(['subl', path + line_col]))
 
 
+def is_url(text):
+    # Heuristic to match URLs (foo.com) but not file extensions (foo.txt).
+                    # A trailing slash, or two dots, is pretty convincing.
+    return re.match(r'\w+(?:\.\w+){1,}/'
+                    r'|\w+(?:\.(?!tar\b)\w+){2,}$'
+                    # There are few 3+ letter TLDs, so whitelist them.
+                    # TODO: Add support for new gTLDs.
+                    r'|\w+\.(?:com|org|edu|gov|net|mil|info|biz|name|coop'
+                             # There are many 2 letter TLDs, but few common 2
+                             # letter file extensions, so blacklist extensions.
+                             r'|(?!ra|rm|au|ai|ps|db|vb|js|gz|xz|cs|pl|pm|py'
+                                 r'|sh|md|nb|so|as|cc|mm|rb|go|hs|ml|tc)'
+                              r'[a-z]{2})$', text)
+
+
 def open_file(path, line_col):
     # html isn't really binary, but it's often useful to view it.
     safe_binaries = \
@@ -111,8 +126,7 @@ if __name__ == '__main__':
                 print("Found %s, but it's not a file or directory" % fixed_path,
                       file=sys.stderr)
                 sys.exit(1)
-        elif re.match(r'\w+\.\w+($|/)', m.group(2)):
-            # Hope this is a URL
+        elif is_url(m.group(2)):
             webbrowser.open_new_tab('https://' + m.group(2) + m.group(3))
         else:
             print("Couldn't parse as file or URL", file=sys.stderr)
