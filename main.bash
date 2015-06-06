@@ -21,9 +21,17 @@ alias du='du -h'
 alias egrep='egrep --color=auto'
 alias fgrep='fgrep --color=auto'
 
-alias l='ls -hF --color=auto'
-alias la='ls -AhF --color=auto'
-alias ll='ls -lhF --color=auto'
+if ls --color=auto &> /dev/null; then
+    alias l='ls -hF --color=auto'
+    alias la='ls -AhF --color=auto'
+    alias ll='ls -lhF --color=auto'
+else
+    # OS X (and BSD) don't support --color; set CLICOLOR instead.
+    export CLICOLOR=1
+    alias l='ls -hF'
+    alias la='ls -AhF'
+    alias ll='ls -lhF'
+fi
 
 strip-ansi() {
     # From http://unix.stackexchange.com/a/4529
