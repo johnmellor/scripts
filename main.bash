@@ -196,6 +196,48 @@ grc-merge-loop() {
     return 1
 }
 
+# Faster equivalent to `gch child_branch && { git rebase || grc-merge-loop; }`.
+gch-rebase() {
+    if (( $# != 1 )); then
+        echo "Usage: ${FUNCNAME[0]} child_branch"
+        return 1
+    fi
+    # Equivalent to: git rebase --onto "$1@{upstream}" "$(git merge-base --fork-point "$1@{upstream}" "$1")" "$1" || grc-merge-loop
+    git rebase --fork-point "$1@{upstream}" "$1" || grc-merge-loop
+}
+complete -o default -o nospace -F _complete_git_heads gch-rebase
+
+# Checkout a branch, after rebasing it and all its ancestors.
+gch-rebase-ancestors() {
+    if (( $# != 1 )); then
+        echo "Usage: ${FUNCNAME[0]} grandchild_branch"
+        return 1
+    fi
+    local ancestors; ancestors=$(g-ancestors "$1") || return 1
+    local branch
+    while IFS= read -r branch || [[ -n $branch ]]; do
+        # This works because gch-rebase uses --fork-point.
+        gch-rebase "$branch" || return 1
+    done <<< "$ancestors"
+}
+complete -o default -o nospace -F _complete_git_heads gch-rebase-ancestors
+
+# Print the given or current branch name, preceded by all non-master local
+# branches it depends on.
+g-ancestors() {
+    local branch; branch="${1:-$(g-current-branch)}" || return 1
+    declare -a branches
+    while true; do
+        branches=("$branch" "${branches[@]}")  # Prepend
+        branch="$(gu "$branch")" || return 1
+        [[ $branch == "master" || $branch == */* ]] && break
+    done
+    for b in "${branches[@]}"; do
+        echo "$b"
+    done
+}
+complete -o default -o nospace -F _complete_git_heads g-ancestors
+
 # Use case: B's upstream is A_old, and you want to rebase B so it tracks A_new instead.
 # Then run g-rebase-set-upstream B A_new
 g-rebase-set-upstream() {
