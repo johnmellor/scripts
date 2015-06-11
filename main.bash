@@ -59,6 +59,17 @@ color-safe-grep() {
 }
 alias highlight='color-safe-grep -C99999'
 
+# Pipe to this, to show output in $PAGER when appropriate.
+pager-if-tty() {
+    if [[ -t 1 ]]; then
+        # stdout is a terminal
+        ${PAGER-less}
+    else
+        # stdout is not a terminal
+        cat
+    fi
+}
+
 # Add -A <your-project-id> to override
 alias gae-up='appcfg.py --oauth2 update .'
 
@@ -157,7 +168,7 @@ glu() {
 complete -o default -o nospace -F _complete_git_heads glu
 
 gdl() {
-    git diff -M --color "$@" | diff-lines -v | less -FRX
+    git diff -M --color "$@" | diff-lines -v | pager-if-tty
 }
 complete -o default -o nospace -F _complete_git_refs gdl
 
