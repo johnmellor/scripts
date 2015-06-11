@@ -118,14 +118,20 @@ _complete_git_refs() {
     __gitcomp "$(__git_refs)"
 }
 
-git-current-branch() {
-    # Print commit hash if HEAD is detached.
-    git symbolic-ref --short HEAD 2> /dev/null || git rev-parse HEAD
+# Prints name of current branch, or if HEAD is detached this
+# prints "fatal: ref HEAD is not a symbolic ref" to stderr.
+g-current-branch() {
+    git symbolic-ref --short HEAD
 }
 
-# Outputs upstream branch of $1 or $(git-current-branch).
+# Prints name of current branch, or commit hash if HEAD is detached.
+g-current-head() {
+    g-current-branch 2> /dev/null || git rev-parse HEAD
+}
+
+# Prints upstream branch of $1 or $(g-current-branch).
 gu() {
-    local from; from="${1:-$(git-current-branch)}" &&
+    local from; from="${1:-$(g-current-branch)}" &&
     git rev-parse --abbrev-ref "$from@{upstream}"
 }
 complete -o default -o nospace -F _complete_git_heads gu
@@ -160,7 +166,7 @@ g-rebase-set-upstream() {
         local child_branch="$1"
         shift
     else
-        local child_branch; child_branch="$(git-current-branch)" || return 1
+        local child_branch; child_branch="$(g-current-branch)" || return 1
     fi
     local new_parent_branch="$1"
     shift
