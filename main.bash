@@ -141,13 +141,20 @@ alias gbv='git branch -vv'
 alias gds='git diff --stat'
 alias gdu='git diff @{upstream}'
 alias gdus='git diff --stat @{upstream}'
-alias glog='git log --oneline'
+# Added author and relative date to oneline format (unfortunately this
+# means ref names are all colored red instead of their correct colors.
+alias glog='git log --graph --date-order --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
 alias gch='git checkout'
-alias glu='glog @{upstream}...'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
 alias gru='git rebase -i @{upstream}'
 alias grc='git rebase --continue'
+
+glu() {
+    # If $1 is empty, this will act on the current branch.
+    glog "$1"@{upstream}.."$1"
+}
+complete -o default -o nospace -F _complete_git_heads glu
 
 gdl() {
     git diff -M --color "$@" | diff-lines -v | less -FRX
