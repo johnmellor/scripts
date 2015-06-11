@@ -159,7 +159,6 @@ alias gch='git checkout'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
 alias gru='git rebase -i @{upstream}'
-alias grc='git rebase --continue'
 
 glu() {
     # If $1 is empty, this will act on the current branch.
@@ -171,6 +170,31 @@ gdl() {
     git diff -M --color "$@" | diff-lines -v | pager-if-tty
 }
 complete -o default -o nospace -F _complete_git_refs gdl
+
+# If a merge conflict is resolved by rejecting all changes from a patch,
+# `git rebase --continue` will complain as follows:
+#    "No changes - did you forget to use 'git add'?
+#     If there is nothing left to stage, chances are that something else
+#     already introduced the same changes; you might want to skip this patch."
+# grc detects this case, and runs `git rebase --skip` instead.
+grc() {
+    if git diff --quiet && git diff --cached --quiet; then
+        # There were no unstaged or staged changes, so skip this patch.
+        git rebase --skip
+    else
+        git rebase --continue
+    fi
+}
+
+# Runs `git mergetool || grc` until merge conflicts are resolved.
+grc-merge-loop() {
+    for ((i = 0; i < 1000; i++)); do
+        git mergetool || return 1
+        grc && return 0
+    done
+    echo "${FUNCNAME[0]} giving up after 1000 iterations :-(" >&2
+    return 1
+}
 
 # Use case: B's upstream is A_old, and you want to rebase B so it tracks A_new instead.
 # Then run g-rebase-set-upstream B A_new
