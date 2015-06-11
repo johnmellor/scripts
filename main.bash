@@ -195,8 +195,9 @@ git-replace() {
             shift
         fi
     done
-    # Cygwin and MSYS don't support perl -i without backup :-|
-    git grep $noindex $grepignorecase -lP "$1" | while read file; do
+    local file
+    git grep $noindex $grepignorecase -lP "$1" | while IFS= read -r file || [[ -n $file ]]; do
+        # Cygwin and MSYS don't support perl -i without backup :-|
         perl -i.gitreplacebak -pe "s%$1%$2%g$perlignorecase" "$file" &&
         rm "$file.gitreplacebak"
     done
@@ -212,7 +213,8 @@ raw-replace() {
 diff-lines() {
     local path=
     local line=
-    while read; do
+    local REPLY
+    while IFS= read -r || [[ -n $REPLY ]]; do
         esc=$'\033'
         if [[ $REPLY =~ ---\ (a/)?.* ]]; then
             if [[ $1 == -v ]]; then if [[ -n $path ]]; then echo; fi; echo "$REPLY"; fi
@@ -243,7 +245,8 @@ diff-replace() {
         echo 'USAGE: git diff | diff-replace "(hello.*)world" "\1universe"'
         return 1
     fi
-    strip-ansi | diff-lines | tac | while read; do
+    local REPLY
+    strip-ansi | diff-lines | tac | while IFS= read -r || [[ -n $REPLY ]]; do
         if [[ $REPLY =~ ^([^:]+):([0-9]+):\+ ]]; then
             local file_path=${BASH_REMATCH[1]}
             local file_line=${BASH_REMATCH[2]}
