@@ -202,6 +202,7 @@ gch-rebase() {
         echo "Usage: ${FUNCNAME[0]} child_branch"
         return 1
     fi
+    echo "Previous tip of \"$1\" was $(git rev-parse "$1")"
     # Equivalent to: git rebase --onto "$1@{upstream}" "$(git merge-base --fork-point "$1@{upstream}" "$1")" "$1" || grc-merge-loop
     git rebase --fork-point "$1@{upstream}" "$1" || grc-merge-loop
 }
@@ -215,10 +216,16 @@ gch-rebase-ancestors() {
     fi
     local ancestors; ancestors=$(g-ancestors "$1") || return 1
     local branch
-    while IFS= read -r branch || [[ -n $branch ]]; do
-        # This works because gch-rebase uses --fork-point.
-        gch-rebase "$branch" || return 1
-    done <<< "$ancestors"
+    (
+        # Split unquoted $ancestors at linebreaks without globbing. Don't use while read
+        # since that prevents git mergetool etc from getting input from stdin.
+        IFS=$'\n'
+        set -o noglob
+        for branch in $ancestors; do
+            # This works because gch-rebase uses --fork-point.
+            gch-rebase "$branch" || return 1
+        done
+    )
 }
 complete -o default -o nospace -F _complete_git_heads gch-rebase-ancestors
 
