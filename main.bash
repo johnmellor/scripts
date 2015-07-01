@@ -276,6 +276,19 @@ g-rebase-set-upstream() {
 }
 complete -o default -o nospace -F _complete_git_heads g-rebase-set-upstream
 
+# USAGE: git-cherry-contains <commit>
+# Prints each local branch containing an equivalent commit.
+# Posted to http://stackoverflow.com/a/31158368/691281.
+git-cherry-contains() {
+    local sha; sha=$(git rev-parse --verify "$1") || return 1
+    local branch
+    while IFS= read -r branch; do
+        if ! git cherry "$branch" "$sha" "$sha^" | grep -qE "^\+ $sha"; then
+            echo "$branch"
+        fi
+    done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
+}
+
 git-replace() {
     if (( $# < 2 )); then
         echo "USAGE: git-replace [-i] <from_regex> <to_text>"
