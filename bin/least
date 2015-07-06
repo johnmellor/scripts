@@ -9,12 +9,21 @@ set -m
 # so we still cat and rm $TMPFILE afterwards.
 trap '' EXIT
 
-[[ -n $LINES ]] || LINES=$(tput lines)
 TXTFILE=$(mktemp 2>/dev/null || mktemp -t 'tmp')
 
-tee "$TXTFILE" | LESS=-FR command less "$@"
+export LESS=-FR
+tee "$TXTFILE" | command less "$@"
 
-if (( $(cat "$TXTFILE" | wc -l) < $LINES )); then
+if [[ " $LESS $@" =~ \ -(-chop-long-lines|[a-jl-nq-su-zA-CE-NQ-SU-Z]*S) ]]; then
+    # Don't wrap lines, since --chop-long-lines was passed to less.
+    LINECOUNT=$(cat "$TXTFILE" | wc -l)
+else
+    # Wrap lines like less before counting.
+    [[ -n $COLUMNS ]] || COLUMNS=$(tput cols)
+    LINECOUNT=$(fold -w "$COLUMNS" "$TXTFILE" | wc -l)
+fi
+[[ -n $LINES ]] || LINES=$(tput lines)
+if (( $LINECOUNT < $LINES )); then
     cat "$TXTFILE"
 fi
 
