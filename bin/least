@@ -12,7 +12,14 @@ trap '' EXIT
 TXTFILE=$(mktemp 2>/dev/null || mktemp -t 'tmp')
 
 export LESS=-FR
-tee "$TXTFILE" | command less "$@"
+if [[ -t 0 ]]; then
+    # Stdin is a terminal (neither a file nor a pipe); hopefully "$@" contains a
+    # filename that less can read into a pipe.
+    LESS= command less "$@" | tee "$TXTFILE" | command less "$@"
+else
+    # Stdin is a file or pipe; pass it directly to tee.
+    tee "$TXTFILE" | command less "$@"
+fi
 
 if [[ " $LESS $@" =~ \ -(-chop-long-lines|[a-jl-nq-su-zA-CE-NQ-SU-Z]*S) ]]; then
     # Don't wrap lines, since --chop-long-lines was passed to less.
