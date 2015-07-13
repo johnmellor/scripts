@@ -25,9 +25,9 @@ if [[ " $LESS $@" =~ \ -(-chop-long-lines|[a-jl-nq-su-zA-CE-NQ-SU-Z]*S) ]]; then
     # Don't wrap lines, since --chop-long-lines was passed to less.
     LINECOUNT=$(cat "$TXTFILE" | wc -l)
 else
-    # Wrap lines like less before counting.
+    # Wrap lines like less before counting (the perl regex strips ANSI escapes).
     [[ -n $COLUMNS ]] || COLUMNS=$(tput cols)
-    LINECOUNT=$(fold -w "$COLUMNS" "$TXTFILE" | wc -l)
+    LINECOUNT=$(perl -pe 's/\e\[?.*?[\@-~]//g' "$TXTFILE" | fold -w "$COLUMNS" | wc -l)
 fi
 [[ -n $LINES ]] || LINES=$(tput lines)
 if (( $LINECOUNT < $LINES )); then
