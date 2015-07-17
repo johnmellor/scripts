@@ -155,6 +155,7 @@ alias gdus='git diff --stat @{upstream}'
 # Added author and relative date to oneline format (unfortunately this
 # means ref names are all colored red instead of their correct colors.
 alias glog='git log --graph --date-order --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
+alias gca='git commit -a --amend --no-edit'
 alias gch='git checkout'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
