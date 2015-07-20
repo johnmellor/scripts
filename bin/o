@@ -22,10 +22,10 @@ def resolve_path(path):
             try:
                 proc = subprocess.Popen([
                     'git', '-c', 'core.quotepath=false', 'ls-files'
-                ], stdout=subprocess.PIPE)
+                ], cwd=directory, stdout=subprocess.PIPE)
                 for line in iter(proc.stdout.readline, b''):
                     git_file_path = line.rstrip(b'\n').decode()
-                    if re.match(r'(^|[\\/])%s$' % path, git_file_path):
+                    if re.search(r'(^|[\\/])%s$' % path, git_file_path):
                         return os.path.join(directory, git_file_path)
             except subprocess.CalledProcessError:
                 pass
