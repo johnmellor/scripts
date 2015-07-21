@@ -33,9 +33,11 @@ def resolve_path(path):
         if parent == directory:
             break  # Can't go above the root directory.
         directory = parent
-    # Strip '../' from beginning of path if necessary.
-    if re.match(r'^..[\\/]', path):
-        return resolve_path(path[3:])
+    # Strip 'a/', 'b/' or '../' from beginning of path if necessary (added by
+    # git diff and compile errors respectively).
+    prefix_match = re.match(r'^(?:a|b|..)[\\/]', path)
+    if prefix_match:
+        return resolve_path(path[prefix_match.end():])
     return None
 
 
