@@ -110,7 +110,7 @@ if __name__ == '__main__':
                "    o path/to/file:line:col (trailing garbage ignored)\n"
                "    o path/to/folder"
                "    o http://foo.com")
-    m = re.match(r'(https?://\S+)'  # URL with scheme
+    m = re.match(r'((?:https?|file)://\S+)'  # URL with scheme
                  r'|([^:].?[^:]*)'  # path, or schemeless URL
                      r'((?::[0-9]+){0,2})',  # linecol
                  ' '.join(sys.argv[1:]))
