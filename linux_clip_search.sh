@@ -32,8 +32,13 @@ o "$sel" &> /dev/null && exit 0
 
 # Try |locate|, but only if selection doesn't contain whitespace.
 if [[ "$sel" == "${sel%[[:space:]]*}" ]]; then
-    locate_result=$(locate --basename --limit 2 "$sel")
+    # Try exact match first.
+    locate_result=$(locate -n2 -e --basename --regex "^$sel\$")
+    if [[ -z "$locate_result" ]]; then
+        locate_result=$(locate -n2 -e --basename "$sel")
+    fi
     if [[ -n "$locate_result" ]]; then
+        # TODO: Show chooser when there are several results.
         if [[ $(echo "$locate_result" | wc -l) == "1" ]]; then
             o "$locate_result" &> /dev/null && exit 0
         fi
