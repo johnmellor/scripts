@@ -263,6 +263,8 @@ g-rebase-set-upstream() {
     local new_parent_branch="$1"
     shift
 
+    echo "Previous tip of \"$child_branch\" was $(git rev-parse "$child_branch")"
+
     local old_parent_branch; old_parent_branch="$(gu "$child_branch")" || return 1
     local ret=0
     if ! git rebase --onto "$new_parent_branch" "$old_parent_branch" "$child_branch"; then
