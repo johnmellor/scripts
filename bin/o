@@ -23,10 +23,15 @@ def resolve_path(path):
                 proc = subprocess.Popen([
                     'git', '-c', 'core.quotepath=false', 'ls-files'
                 ], cwd=directory, stdout=subprocess.PIPE)
+                git_paths = []
                 for line in iter(proc.stdout.readline, b''):
                     git_file_path = line.rstrip(b'\n').decode()
                     if re.search(r'(^|[\\/])%s$' % path, git_file_path):
-                        return os.path.join(directory, git_file_path)
+                        git_paths.append(os.path.join(directory, git_file_path))
+                if git_paths:
+                    # If multiple paths match, return least slashes / shortest.
+                    return min(git_paths,
+                               key=lambda p: (p.count(os.sep), len(p)))
             except subprocess.CalledProcessError:
                 pass
         parent = os.path.dirname(directory)
