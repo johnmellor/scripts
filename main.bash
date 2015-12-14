@@ -187,25 +187,33 @@ grc() {
     fi
 }
 
-# Runs `git mergetool || grc` until merge conflicts are resolved.
-grc-merge-loop() {
+g-continue() {
+    if [[ -e $(git rev-parse --git-dir)/CHERRY_PICK_HEAD ]]; then
+        git cherry-pick --continue
+    else
+        grc
+    fi
+}
+
+# Runs `git mergetool || g-continue` until merge conflicts are resolved.
+g-merge-loop() {
     for ((i = 0; i < 1000; i++)); do
         git mergetool || return 1
-        grc && return 0
+        g-continue && return 0
     done
     echo "${FUNCNAME[0]} giving up after 1000 iterations :-(" >&2
     return 1
 }
 
-# Faster equivalent to `gch child_branch && { git rebase || grc-merge-loop; }`.
+# Faster equivalent to `gch child_branch && { git rebase || g-merge-loop; }`.
 gch-rebase() {
     if (( $# != 1 )); then
         echo "Usage: ${FUNCNAME[0]} child_branch"
         return 1
     fi
     echo "Previous tip of \"$1\" was $(git rev-parse "$1")"
-    # Equivalent to: git rebase --onto "$1@{upstream}" "$(git merge-base --fork-point "$1@{upstream}" "$1")" "$1" || grc-merge-loop
-    git rebase --fork-point "$1@{upstream}" "$1" || grc-merge-loop
+    # Equivalent to: git rebase --onto "$1@{upstream}" "$(git merge-base --fork-point "$1@{upstream}" "$1")" "$1" || g-merge-loop
+    git rebase --fork-point "$1@{upstream}" "$1" || g-merge-loop
 }
 complete -o default -o nospace -F _complete_git_heads gch-rebase
 
