@@ -114,6 +114,7 @@ __source_relative git-completion.bash
 # TODO: These should be run only once.
 git config --global push.default simple
 git config --global diff.tool meld
+git config --global difftool.prompt false
 git config --global merge.tool p4merge
 git config --global mergetool.keepBackup false
 git config --global merge.conflictstyle diff3
@@ -299,6 +300,9 @@ git-cherry-contains() {
         fi
     done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
 }
+
+# To search without replacing:
+# git grep [--no-index] [-i] -nP <regex> [-- '*.ext' ['*.ext']* ]
 
 git-replace() {
     if (( $# < 2 )); then
