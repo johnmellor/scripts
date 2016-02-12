@@ -191,8 +191,13 @@ grc() {
 g-continue() {
     if [[ -e $(git rev-parse --git-dir)/CHERRY_PICK_HEAD ]]; then
         git cherry-pick --continue
-    else
+    elif [[ -e $(git rev-parse --git-dir)/REVERT_HEAD ]]; then
+        git revert --continue
+    elif [[ -d ".git/rebase-merge" || -d ".git/rebase-apply" ]]; then
         grc
+    else
+        echo "No rebase, cherry-pick or revert in progress!" >&2
+        return 69  # Custom exit code so g-merge-loop can distinguish this case.
     fi
 }
 
@@ -201,6 +206,7 @@ g-merge-loop() {
     for ((i = 0; i < 1000; i++)); do
         git mergetool || return 1
         g-continue && return 0
+        if (($? == 69)); then return 69; fi
     done
     echo "${FUNCNAME[0]} giving up after 1000 iterations :-(" >&2
     return 1
