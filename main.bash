@@ -156,7 +156,6 @@ alias gdus='git diff --stat @{upstream}'
 # means ref names are all colored red instead of their correct colors.
 alias glog='git log --graph --date-order --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
 alias gca='git commit -a --amend --no-edit'
-alias gch='git checkout'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
 alias gru='git rebase -i @{upstream}'
@@ -242,15 +241,35 @@ g-merge-loop() {
     return 1
 }
 
-# Faster equivalent to `gch child_branch && { git rebase || g-merge-loop; }`.
+# Faster `git checkout child_branch && { git rebase || g-merge-loop; }`,
+# but won't checkout the branch if rebase is unnecessary.
+g-rebase() {
+    if (( $# != 1 )); then
+        echo "Usage: ${FUNCNAME[0]} child_branch"
+        return 1
+    fi
+    if [[ $(git merge-base "$1" "$1"@{u}) == $(git rev-parse "$1"@{u}) ]]; then
+        # Already up to date.
+        return 0
+    fi
+    echo "Previous tip of \"$1\" was $(git rev-parse "$1")"
+    # Equivalent to: git rebase --onto "$1"@{u} \
+    #                "$(git merge-base --fork-point "$1"@{u} "$1")" \
+    #                "$1" || g-merge-loop
+    git rebase --fork-point "$1"@{u} "$1" || g-merge-loop
+}
+complete -o default -o nospace -F _complete_git_heads g-rebase
+
+# Faster `git checkout child_branch && { git rebase || g-merge-loop; }`.
 gch-rebase() {
     if (( $# != 1 )); then
         echo "Usage: ${FUNCNAME[0]} child_branch"
         return 1
     fi
-    echo "Previous tip of \"$1\" was $(git rev-parse "$1")"
-    # Equivalent to: git rebase --onto "$1@{upstream}" "$(git merge-base --fork-point "$1@{upstream}" "$1")" "$1" || g-merge-loop
-    git rebase --fork-point "$1@{upstream}" "$1" || g-merge-loop
+    g-rebase "$1"
+    if [[ $(g-current-head) != $1 ]]; then
+        git checkout "$1"
+    fi
 }
 complete -o default -o nospace -F _complete_git_heads gch-rebase
 
@@ -268,12 +287,16 @@ gch-rebase-ancestors() {
         IFS=$'\n'
         set -o noglob
         for branch in $ancestors; do
-            # This works because gch-rebase uses --fork-point.
-            gch-rebase "$branch" || return 1
+            # This works because g-rebase uses --fork-point.
+            g-rebase "$branch" || return 1
         done
+        if [[ $(g-current-head) != $1 ]]; then
+            git checkout "$1"
+        fi
     )
 }
 complete -o default -o nospace -F _complete_git_heads gch-rebase-ancestors
+alias gch='gch-rebase-ancestors'  # It's almost as fast as git checkout!
 
 # Print the given or current branch name, preceded by all non-master local
 # branches it depends on.
