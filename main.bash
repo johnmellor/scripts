@@ -149,7 +149,6 @@ gu() {
 complete -o default -o nospace -F _complete_git_heads gu
 
 alias gst='git status'
-alias gbv='git branch -vv'
 alias gds='git diff --stat'
 alias gdu='git diff @{upstream}'
 alias gdus='git diff --stat @{upstream}'
@@ -167,6 +166,37 @@ glu() {
     glog "$1"@{upstream}.."$1"
 }
 complete -o default -o nospace -F _complete_git_heads glu
+
+# Alternative to `git rev-list --left-right --count $1...$1@{u}`. Much faster
+# for branches that are very far behind, for which it prints ???? instead of
+# calculating the exact count. Counts may be approximate if a lot of merging has
+# happened.
+aheadbehind() {
+    # Increasing this shows behind count for older branches, instead of ????,
+    # but slows this script down.
+    local MAX_BEHIND=1000
+
+    local ahead=$(git rev-list "$1@{u}..$1" | wc -l)
+    local behind=$(
+        git rev-list -$MAX_BEHIND "$1@{u}" |
+        grep -Fv -f <(git rev-list -$(($MAX_BEHIND + $ahead)) "$1") |
+        wc -l)
+
+    if (( $ahead > 0 )); then
+        printf "+$ahead"
+    fi
+    if (( $behind > 0 )); then
+        (( $behind == $MAX_BEHIND )) && printf -- "-????" || printf -- "-$behind"
+    fi
+}
+# Like `git branch -vv`, but sorted in date order, and much faster but only
+# approximate ahead/behind counts if some branches are very old.
+# See also http://stackoverflow.com/questions/5188320/how-can-i-get-a-list-of-git-branches-ordered-by-most-recent-commit
+gbv() {
+    # Using cat runs subcommands in parallel, which is 10x faster than serial.
+    local lines=$(git for-each-ref --shell --sort=committerdate refs/heads --format='<(echo -n %(committerdate:short) %(objectname:short) %(HEAD) %(refname:short) [%(color:blue)%(upstream:short)%(color:reset)) <(aheadbehind %(refname:short)) <(echo "]" %(contents:subject))')
+    eval cat "${lines//$'\n'/ }"
+}
 
 gdl() {
     git diff -M --color "$@" | diff-lines -v | pager-if-tty
@@ -371,6 +401,7 @@ alias dl='diff-lines -v'
 diff-grep() { diff-lines -v | color-safe-grep "$@"; }
 alias dg='diff-grep'
 
+# e.g. to delete all added lines containing FOO: git diff | dr '.*FOO.*\n' ''
 diff-replace() {
     if (( $# != 2 )); then
         echo 'USAGE: git diff | diff-replace "(hello.*)world" "\1universe"'
@@ -381,6 +412,7 @@ diff-replace() {
         if [[ $REPLY =~ ^([^:]+):([0-9]+):\+ ]]; then
             local file_path=${BASH_REMATCH[1]}
             local file_line=${BASH_REMATCH[2]}
+            # TODO: Should call perl once per file, not once per added line!
             perl -pi -e "s%$1%$2%g if \$. == $file_line" "$file_path"
         fi
     done
