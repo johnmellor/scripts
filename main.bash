@@ -159,6 +159,9 @@ alias gca='git commit -a --amend --no-edit'
 alias gcm='git checkout master'
 alias gdc='git diff --cached'
 alias gru='git rebase -i @{upstream}'
+alias gcp='git cherry-pick'
+alias gsh='git show'
+alias gshs='git show --stat=$COLUMNS --stat-graph-width=$(($COLUMNS/5))'
 
 glu() {
     # If $1 is empty, this will act on the current branch.
