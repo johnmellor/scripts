@@ -122,11 +122,11 @@ if __name__ == '__main__':
     args = strip_ansi(' '.join(sys.argv[1:]))
     m = re.match(# URL with scheme
                  r'((?:https?|file)://\S+)'
-                 # Path, or schemeless URL. Ends at single colon to extract path
-                 # from grep output like "C:\path\to\file.ext:line of text"
-                 r'|([^:].?(?:[^:]|:{2,})*)'
-                     # Optional :line:col
-                     r'((?::[0-9]+){0,2})',
+                 # Path, or schemeless URL. Ends at single colon or -\d+-\s to
+                 # extract path from grep output like "C:\path\file.ext:foo bar"
+                 r'|([^:].?(?:[^:-]|:{2,}|(?!-\d+-(?:\s|$))-)*)'
+                     # Optional :line:col or -line- (used by grep -nC1)
+                     r'((?::\d+){1,2}|-\d+(?=-\s|-$))?',
                  args)
     if m.group(1):
         webbrowser.open_new_tab(m.group(1))
@@ -135,7 +135,10 @@ if __name__ == '__main__':
         if fixed_path is not None:
             fixed_path = canonicalize_path(fixed_path)
             if os.path.isfile(fixed_path):
-                open_file(fixed_path, m.group(3))
+                line_col = ''
+                if m.group(3):
+                    line_col = m.group(3).replace('-', ':').rstrip(':')
+                open_file(fixed_path, line_col)
             elif os.path.isdir(fixed_path):
                 native_open(fixed_path)
             else:
