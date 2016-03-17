@@ -148,26 +148,84 @@ gu() {
 }
 complete -o default -o nospace -F _complete_git_heads gu
 
+glu() {
+    # If first parameter is an argument to glog, assume we're operating on HEAD.
+    if [[ "$1" == -* ]]; then
+        set -- HEAD "$@"
+    fi
+    # If $1 is empty, this will act on the current branch.
+    glog "$1"@{upstream}.."$1" "${@:2}"
+}
+complete -o default -o nospace -F _complete_git_heads glu
+
+gdu() {
+    # TODO: "gdu --stat topic" will fail. Only "gdu topic --stat" works. Need
+    # better argument parsing.
+    if [[ -z "$1" ]] || [[ "$1" == -* ]]; then
+        # Doesn't include uncommitted changes
+        #git diff @{u}...
+        # Includes uncommitted changes, but not new untracked files
+        git diff -M $(git merge-base @{u} HEAD) "$@"
+    else
+        git diff -M "$1"@{u}..."$1" "${@:2}"
+    fi
+}
+complete -o default -o nospace -F _complete_git_heads gdu
+
+gdus() {
+    gdu "$@" --stat=$COLUMNS --stat-graph-width=$(($COLUMNS/5))
+}
+complete -o default -o nospace -F _complete_git_heads gdus
+
+gdd() {
+    git difftool --dir-diff "$@" &
+}
+complete -o default -o nospace -F _complete_git_refs gdd
+
+gddc() {
+    gdd "$@" --cached
+}
+complete -o default -o nospace -F _complete_git_refs gddc
+
+gddh() {
+    # If first parameter is empty or a param, assume we're operating on HEAD.
+    if [[ -z "$1" || "$1" == -* ]]; then
+        set -- HEAD "$@"
+    fi
+    git difftool --dir-diff "$1"^ "$1" "${@:2}" &
+}
+complete -o default -o nospace -F _complete_git_refs gddh
+
+gddu() {
+    # TODO: "gddu --cached topic" will fail. Only "gdu topic --cached" works.
+    # Need better argument parsing.
+    if [[ -z "$1" ]] || [[ "$1" == -* ]]; then
+        # Doesn't include uncommitted changes
+        #gdd @{u}... &
+        # Includes uncommitted changes, but not new untracked files
+        gdd $(git merge-base @{u} HEAD) "$@" &
+    else
+        # Not sure if this works fully; if not, switch to the version below.
+        gdd "$1"@{u}..."$1" "${@:2}" &
+        #gdd $(git merge-base "$1"@{u} "$1") "$1" "${@:2}" &
+    fi
+}
+complete -o default -o nospace -F _complete_git_heads gddu
+
 alias gst='git status'
-alias gds='git diff --stat'
-alias gdu='git diff @{upstream}'
-alias gdus='git diff --stat @{upstream}'
+alias gds='git diff -M --stat'
+alias gdm='git diff -M master'
+alias gddm='gdd master'
 # Added author and relative date to oneline format (unfortunately this
 # means ref names are all colored red instead of their correct colors.
 alias glog='git log --graph --date-order --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
 alias gca='git commit -a --amend --no-edit'
 alias gcm='git checkout master'
-alias gdc='git diff --cached'
+alias gdc='git diff -M --cached'
 alias gru='git rebase -i @{upstream}'
 alias gcp='git cherry-pick'
 alias gsh='git show'
 alias gshs='git show --stat=$COLUMNS --stat-graph-width=$(($COLUMNS/5))'
-
-glu() {
-    # If $1 is empty, this will act on the current branch.
-    glog "$1"@{upstream}.."$1"
-}
-complete -o default -o nospace -F _complete_git_heads glu
 
 # Alternative to `git rev-list --left-right --count $1...$1@{u}`. Much faster
 # for branches that are very far behind, for which it prints ???? instead of
