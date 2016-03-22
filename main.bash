@@ -227,26 +227,26 @@ alias gcp='git cherry-pick'
 alias gsh='git show'
 alias gshs='git show --stat=$COLUMNS --stat-graph-width=$(($COLUMNS/5))'
 
+# Increasing this shows behind count for older branches, instead of ????, but
+# slows down `aheadbehind`.
+__AHEADBEHIND_MAX_BEHIND=1000
+
 # Alternative to `git rev-list --left-right --count $1...$1@{u}`. Much faster
 # for branches that are very far behind, for which it prints ???? instead of
 # calculating the exact count. Counts may be approximate if a lot of merging has
 # happened.
 aheadbehind() {
-    # Increasing this shows behind count for older branches, instead of ????,
-    # but slows this script down.
-    local MAX_BEHIND=1000
-
     local ahead=$(git rev-list "$1@{u}..$1" | wc -l)
     local behind=$(
-        git rev-list -$MAX_BEHIND "$1@{u}" |
-        grep -Fv -f <(git rev-list -$(($MAX_BEHIND + $ahead)) "$1") |
+        git rev-list -$__AHEADBEHIND_MAX_BEHIND "$1@{u}" |
+        grep -Fv -f <(git rev-list -$(($__AHEADBEHIND_MAX_BEHIND + $ahead)) "$1") |
         wc -l)
 
     if (( $ahead > 0 )); then
         printf "+$ahead"
     fi
     if (( $behind > 0 )); then
-        (( $behind == $MAX_BEHIND )) && printf -- "-????" || printf -- "-$behind"
+        (( $behind == $__AHEADBEHIND_MAX_BEHIND )) && printf -- "-????" || printf -- "-$behind"
     fi
 }
 # Like `git branch -vv`, but sorted in date order, and much faster but only
@@ -256,6 +256,9 @@ gbv() {
     # Using cat runs subcommands in parallel, which is 10x faster than serial.
     local lines=$(git for-each-ref --shell --sort=committerdate refs/heads --format='<(echo -n %(committerdate:short) %(objectname:short) %(HEAD) %(refname:short) [%(color:blue)%(upstream:short)%(color:reset)) <(aheadbehind %(refname:short)) <(echo "]" %(contents:subject))')
     eval cat "${lines//$'\n'/ }"
+}
+gbvv() {
+    __AHEADBEHIND_MAX_BEHIND=10000 gbv "$@"
 }
 
 gdl() {
