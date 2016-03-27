@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # Instructions:
-# - Run |gnome-control-center keyboard|
 # - Go to System Settings > Keyboard > Shortcuts > Custom shortcuts
-# - Add a new shortcut, with command: "/path/to/clip_search.sh"
+# - Add a new shortcut, with command: "/path/to/linux_clip_search.sh"
 # - Map it to e.g. Start+space
 # - To use, select text and press e.g. Start+space
 
@@ -46,4 +45,4 @@ if [[ "$sel" == "${sel%[[:space:]]*}" ]]; then
 fi
 
 search_query=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$sel")
-o "https://www.google.com/search?q=$search_query"
+o "https://devdocs.io/#q=$search_query"
