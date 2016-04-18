@@ -414,7 +414,7 @@ g-rebase-set-upstream() {
 
     local old_parent_branch; old_parent_branch="$(gu "$child_branch")" || return 1
     local ret=0
-    if ! { git rebase --onto "$new_parent_branch" "$old_parent_branch" "$child_branch" || g-merge-loop; }; then
+    if ! { git rebase --fork-point --onto "$new_parent_branch" "$old_parent_branch" "$child_branch" || g-merge-loop; }; then
         ret=1
     fi
     # Set the new upstream even if there is a rebase conflict. Otherwise it's
