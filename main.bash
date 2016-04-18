@@ -223,7 +223,8 @@ alias gdm='git diff -M master'
 alias gddm='gdd master'
 # Added author and relative date to oneline format (unfortunately this
 # means ref names are all colored red instead of their correct colors.
-alias glog='git log --graph --date-order --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
+alias glog='git log --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
+alias glog-graph='glog --graph --date-order'  # Slow
 alias gca='git commit -a --amend --no-edit'
 alias gcm='git checkout master'
 alias gc-='git checkout -'
