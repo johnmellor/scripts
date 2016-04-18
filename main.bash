@@ -141,6 +141,11 @@ g-current-head() {
     g-current-branch 2> /dev/null || git rev-parse HEAD
 }
 
+g-is-branch() {
+    git show-ref --quiet --verify -- "refs/heads/$1"
+}
+complete -o default -o nospace -F _complete_git_heads g-is-branch
+
 # Prints upstream branch of $1 or $(g-current-branch).
 gu() {
     local from; from="${1:-$(g-current-branch)}" &&
@@ -221,6 +226,7 @@ alias gddm='gdd master'
 alias glog='git log --graph --date-order --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
 alias gca='git commit -a --amend --no-edit'
 alias gcm='git checkout master'
+alias gc-='git checkout -'
 alias gdc='git diff -M --cached'
 alias gru='git rebase -i @{upstream}'
 alias gcp='git cherry-pick'
@@ -360,7 +366,15 @@ gch-rebase-ancestors() {
     )
 }
 complete -o default -o nospace -F _complete_git_heads gch-rebase-ancestors
-alias gch='gch-rebase-ancestors'  # It's almost as fast as git checkout!
+
+gch() {
+    if (( $# == 1 )) && g-is-branch "$1"; then
+        gch-rebase-ancestors "$1"  # It's almost as fast as git checkout!
+    else
+        git checkout "$@"
+    fi
+}
+complete -o default -o nospace -F _complete_git_heads gch
 
 # Print the given or current branch name, preceded by all non-master local
 # branches it depends on.
