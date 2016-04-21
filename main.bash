@@ -119,6 +119,22 @@ git config --global merge.tool p4merge
 git config --global mergetool.keepBackup false
 git config --global merge.conflictstyle diff3
 
+alias gst='git status'
+alias gds='git diff -M --stat'
+alias gdm='git diff -M master'
+alias gddm='gdd master'
+# Added author and relative date to oneline format (unfortunately this
+# means ref names are all colored red instead of their correct colors.
+alias glog='git log --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
+alias glog-graph='glog --graph --date-order'  # Slow
+alias gca='git commit -a --amend --no-edit'
+alias gcm='git checkout master'
+alias gc-='git checkout -'
+alias gdc='git diff -M --cached'
+alias gcp='git cherry-pick'
+alias gsh='git show'
+alias gshs='git show --stat=$COLUMNS --stat-graph-width=$(($COLUMNS/5))'
+
 # WARNING: Uses undocumented functions, so may break in future versions of git.
 _complete_git_heads()
 {
@@ -214,22 +230,6 @@ gddu() {
     fi
 }
 complete -o default -o nospace -F _complete_git_heads gddu
-
-alias gst='git status'
-alias gds='git diff -M --stat'
-alias gdm='git diff -M master'
-alias gddm='gdd master'
-# Added author and relative date to oneline format (unfortunately this
-# means ref names are all colored red instead of their correct colors.
-alias glog='git log --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)"'
-alias glog-graph='glog --graph --date-order'  # Slow
-alias gca='git commit -a --amend --no-edit'
-alias gcm='git checkout master'
-alias gc-='git checkout -'
-alias gdc='git diff -M --cached'
-alias gcp='git cherry-pick'
-alias gsh='git show'
-alias gshs='git show --stat=$COLUMNS --stat-graph-width=$(($COLUMNS/5))'
 
 # Increasing this shows behind count for older branches, instead of ????, but
 # slows down `aheadbehind`.
