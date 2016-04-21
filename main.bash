@@ -148,31 +148,33 @@ complete -o default -o nospace -F _complete_git_heads g-is-branch
 
 # Prints upstream branch of $1 or $(g-current-branch).
 gu() {
-    local from; from="${1:-$(g-current-branch)}" &&
-    git rev-parse --abbrev-ref "$from@{upstream}"
+    git rev-parse --abbrev-ref "$1@{u}"
 }
 complete -o default -o nospace -F _complete_git_heads gu
 
 glu() {
     # If first parameter is an argument to glog, assume we're operating on HEAD.
-    if [[ "$1" == -* ]]; then
+    if [[ -z "$1" || "$1" == -* ]]; then
         set -- HEAD "$@"
     fi
-    # If $1 is empty, this will act on the current branch.
-    glog "$1"@{upstream}.."$1" "${@:2}"
+    glog $(git merge-base --fork-point "$1"@{u} "$1").."$1" "${@:2}"
 }
 complete -o default -o nospace -F _complete_git_heads glu
+
+gru() {
+    git rebase -i $(git merge-base --fork-point @{u}) "$@"
+}
 
 gdu() {
     # TODO: "gdu --stat topic" will fail. Only "gdu topic --stat" works. Need
     # better argument parsing.
     if [[ -z "$1" ]] || [[ "$1" == -* ]]; then
-        # Doesn't include uncommitted changes
+        # Doesn't include uncommited changes, or use fork-point.
         #git diff @{u}...
-        # Includes uncommitted changes, but not new untracked files
-        git diff -M $(git merge-base @{u} HEAD) "$@"
+        # Includes uncommitted changes, but not new untracked files.
+        git diff -M $(git merge-base --fork-point @{u}) "$@"
     else
-        git diff -M "$1"@{u}..."$1" "${@:2}"
+        git diff -M $(git merge-base --fork-point "$1"@{u} "$1") "$1" "${@:2}"
     fi
 }
 complete -o default -o nospace -F _complete_git_heads gdu
@@ -197,22 +199,18 @@ gddh() {
     if [[ -z "$1" || "$1" == -* ]]; then
         set -- HEAD "$@"
     fi
-    git difftool --dir-diff "$1"^ "$1" "${@:2}" &
+    gdd "$1"^ "$1" "${@:2}"
 }
 complete -o default -o nospace -F _complete_git_refs gddh
 
 gddu() {
-    # TODO: "gddu --cached topic" will fail. Only "gdu topic --cached" works.
+    # TODO: "gddu --cached topic" will fail. Only "gddu topic --cached" works.
     # Need better argument parsing.
     if [[ -z "$1" ]] || [[ "$1" == -* ]]; then
-        # Doesn't include uncommitted changes
-        #gdd @{u}... &
-        # Includes uncommitted changes, but not new untracked files
-        gdd $(git merge-base @{u} HEAD) "$@" &
+        # Includes uncommitted changes, but not new untracked files.
+        gdd $(git merge-base --fork-point @{u}) "$@"
     else
-        # Not sure if this works fully; if not, switch to the version below.
-        gdd "$1"@{u}..."$1" "${@:2}" &
-        #gdd $(git merge-base "$1"@{u} "$1") "$1" "${@:2}" &
+        gdd $(git merge-base --fork-point "$1"@{u} "$1") "$1" "${@:2}"
     fi
 }
 complete -o default -o nospace -F _complete_git_heads gddu
@@ -229,7 +227,6 @@ alias gca='git commit -a --amend --no-edit'
 alias gcm='git checkout master'
 alias gc-='git checkout -'
 alias gdc='git diff -M --cached'
-alias gru='git rebase -i @{upstream}'
 alias gcp='git cherry-pick'
 alias gsh='git show'
 alias gshs='git show --stat=$COLUMNS --stat-graph-width=$(($COLUMNS/5))'
