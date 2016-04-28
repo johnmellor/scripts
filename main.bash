@@ -311,7 +311,7 @@ g-merge-loop() {
 
 # Faster `git checkout child_branch && { git rebase || g-merge-loop; }`,
 # but won't checkout the branch if rebase is unnecessary.
-g-rebase() {
+_gch_rebase_if_necessary() {
     if (( $# != 1 )); then
         echo "Usage: ${FUNCNAME[0]} child_branch"
         return 1
@@ -326,7 +326,7 @@ g-rebase() {
     #                "$1" || g-merge-loop
     git rebase --fork-point "$1"@{u} "$1" || g-merge-loop
 }
-complete -o default -o nospace -F _complete_git_heads g-rebase
+complete -o default -o nospace -F _complete_git_heads _gch_rebase_if_necessary
 
 # Faster `git checkout child_branch && { git rebase || g-merge-loop; }`.
 gch-rebase() {
@@ -334,7 +334,7 @@ gch-rebase() {
         echo "Usage: ${FUNCNAME[0]} child_branch"
         return 1
     fi
-    g-rebase "$1"
+    _gch_rebase_if_necessary "$1"
     if [[ $(g-current-head) != $1 ]]; then
         git checkout "$1"
     fi
@@ -355,8 +355,8 @@ gch-rebase-ancestors() {
         IFS=$'\n'
         set -o noglob
         for branch in $ancestors; do
-            # This works because g-rebase uses --fork-point.
-            g-rebase "$branch" || return 1
+            # This works because _gch_rebase_if_necessary uses --fork-point.
+            _gch_rebase_if_necessary "$branch" || return 1
         done
         if [[ $(g-current-head) != $1 ]]; then
             git checkout "$1"
@@ -391,8 +391,8 @@ g-ancestors() {
 complete -o default -o nospace -F _complete_git_heads g-ancestors
 
 # Use case: B's upstream is A_old, and you want to rebase B so it tracks A_new instead.
-# Then run g-rebase-set-upstream B A_new
-g-rebase-set-upstream() {
+# Then run _gch_rebase_if_necessary-set-upstream B A_new
+_gch_rebase_if_necessary-set-upstream() {
     if (( $# < 1 || $# > 2 )); then
         echo "Usage: ${FUNCNAME[0]} [child_branch] new_parent_branch"
         return 1
@@ -421,7 +421,7 @@ g-rebase-set-upstream() {
     fi
     return $ret
 }
-complete -o default -o nospace -F _complete_git_heads g-rebase-set-upstream
+complete -o default -o nospace -F _complete_git_heads _gch_rebase_if_necessary-set-upstream
 
 # Posted to http://stackoverflow.com/a/36463546/691281.
 g-fork-off-n() {
