@@ -104,7 +104,7 @@ __ansi_green_and_red=("$(echo $'\e[1;32m')" "$(echo $'\e[1;31m')")
 
 dayname-2chars() { local dayname=$(date +%a); echo ${dayname:0:2}; }
 
-export PS1='\[${__ansi_green_and_red[$? != 0]}\]$(dayname-2chars)|$(date +%H:%M)\[\e[0m\] \[\e[1;33m\]\w\[\e[0m\] \[\e[1;35m\]$(__git_ps1 "(%s)")\[\e[0m\]\$ '
+export PS1='\[${__ansi_green_and_red[$? != 0]}\]$(dayname-2chars)|$(date +%H:%M)\[\e[0m\] \[\e[1;33m\]\w\[\e[0m\]\[\e[1;35m\]$(__git_ps1 " (%s)")\[\e[0m\]\$ '
 
 
 # GIT
