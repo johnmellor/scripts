@@ -173,12 +173,20 @@ glu() {
     if [[ -z "$1" || "$1" == -* ]]; then
         set -- HEAD "$@"
     fi
-    glog $(git merge-base --fork-point "$1"@{u} "$1").."$1" "${@:2}"
+    local forkpoint; forkpoint=$(git merge-base --fork-point "$1"@{u} "$1") || {
+        echo "Could not find fork-point!" >&2
+        return 1
+    }
+    glog "$forkpoint".."$1" "${@:2}"
 }
 complete -o default -o nospace -F _complete_git_heads glu
 
 gru() {
-    git rebase -i $(git merge-base --fork-point @{u}) "$@"
+    local forkpoint; forkpoint=$(git merge-base --fork-point @{u}) || {
+        echo "Could not find fork-point!" >&2
+        return 1
+    }
+    git rebase -i "$forkpoint" "$@"
 }
 
 gdu() {
@@ -188,9 +196,18 @@ gdu() {
         # Doesn't include uncommited changes, or use fork-point.
         #git diff @{u}...
         # Includes uncommitted changes, but not new untracked files.
-        git diff -M $(git merge-base --fork-point @{u}) "$@"
+        local forkpoint; forkpoint=$(git merge-base --fork-point @{u}) || {
+            echo "Could not find fork-point!" >&2
+            return 1
+        }
+        git diff -M "$forkpoint" "$@"
     else
-        git diff -M $(git merge-base --fork-point "$1"@{u} "$1") "$1" "${@:2}"
+        local forkpoint
+        forkpoint=$(git merge-base --fork-point "$1"@{u} "$1") || {
+            echo "Could not find fork-point!" >&2
+            return 1
+        }
+        git diff -M "$forkpoint" "$1" "${@:2}"
     fi
 }
 complete -o default -o nospace -F _complete_git_heads gdu
@@ -224,9 +241,18 @@ gddu() {
     # Need better argument parsing.
     if [[ -z "$1" ]] || [[ "$1" == -* ]]; then
         # Includes uncommitted changes, but not new untracked files.
-        gdd $(git merge-base --fork-point @{u}) "$@"
+        local forkpoint; forkpoint=$(git merge-base --fork-point @{u}) || {
+            echo "Could not find fork-point!" >&2
+            return 1
+        }
+        gdd "$forkpoint" "$@"
     else
-        gdd $(git merge-base --fork-point "$1"@{u} "$1") "$1" "${@:2}"
+        local forkpoint
+        forkpoint=$(git merge-base --fork-point "$1"@{u} "$1") || {
+            echo "Could not find fork-point!" >&2
+            return 1
+        }
+        gdd "$forkpoint" "$1" "${@:2}"
     fi
 }
 complete -o default -o nospace -F _complete_git_heads gddu
