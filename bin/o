@@ -120,14 +120,25 @@ if __name__ == '__main__':
                "    o path/to/folder"
                "    o http://foo.com")
     args = strip_ansi(' '.join(sys.argv[1:]))
-    m = re.match(# URL with scheme
-                 r'((?:https?|file)://\S+)'
-                 # Path, or schemeless URL. Ends at single colon or -\d+-\s to
-                 # extract path from grep output like "C:\path\file.ext:foo bar"
-                 r'|([^:].?(?:[^:-]|:{2,}|(?!-\d+-(?:\s|$))-)*)'
-                     # Optional :line:col or -line- (used by grep -nC1)
-                     r'((?::\d+){1,2}|-\d+(?=-\s|-$))?',
-                 args)
+    m = re.match(
+        r'''
+        # URL with scheme
+        ((?:https?|file)://\S+)
+        # Path or schemeless URL. Ends at single colon, -\d+-\s or trailing
+        # comma to extract path from grep output like "C:\path\file.ext:foo bar"
+        |(
+          (?:[A-Za-z]:)?  # Optional drive path like C:
+          (?:[^:,-]          # Path-safe characters
+             |[:,]{2,}       # Two or more colons or commas
+             |(?!-\d+-(?:\s  # Dashes other than -\d+-\s
+                         |$))-
+          )*
+         )
+         # Optional :line:col or -line- (used by grep -nC1)
+         ((?::\d+){1,2}
+          |-\d+(?=-\s
+                  |-$))?
+        ''', args, re.VERBOSE)
     if m.group(1):
         webbrowser.open_new_tab(m.group(1))
     elif m.group(2):
