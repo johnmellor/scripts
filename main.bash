@@ -316,7 +316,7 @@ g-continue() {
         git cherry-pick --continue
     elif [[ -e $(git rev-parse --git-dir)/REVERT_HEAD ]]; then
         git revert --continue
-    elif [[ -d ".git/rebase-merge" || -d ".git/rebase-apply" ]]; then
+    elif [[ -d $(git rev-parse --git-dir)/rebase-merge || -d $(git rev-parse --git-dir)/rebase-apply ]]; then
         grc
     else
         echo "No rebase, cherry-pick or revert in progress!" >&2
