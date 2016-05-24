@@ -417,8 +417,8 @@ g-ancestors() {
 complete -o default -o nospace -F _complete_git_heads g-ancestors
 
 # Use case: B's upstream is A_old, and you want to rebase B so it tracks A_new instead.
-# Then run _gch_rebase_if_necessary-set-upstream B A_new
-_gch_rebase_if_necessary-set-upstream() {
+# Then run g-rebase-set-upstream B A_new
+g-rebase-set-upstream() {
     if (( $# < 1 || $# > 2 )); then
         echo "Usage: ${FUNCNAME[0]} [child_branch] new_parent_branch"
         return 1
@@ -447,7 +447,7 @@ _gch_rebase_if_necessary-set-upstream() {
     fi
     return $ret
 }
-complete -o default -o nospace -F _complete_git_heads _gch_rebase_if_necessary-set-upstream
+complete -o default -o nospace -F _complete_git_heads g-rebase-set-upstream
 
 # Posted to http://stackoverflow.com/a/36463546/691281.
 g-fork-off-n() {
