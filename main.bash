@@ -160,25 +160,26 @@ gu() {
 }
 complete -o default -o nospace -F _complete_git_heads gu
 
+# Prints sha1 at which branch $1 - or the current branch if empty - forked from
+# its upstream branch. Falls back to merge-base (with warning) if reflog doesn't
+# go back far enough.
+g-upstream-fork-point() {
+    git merge-base --fork-point "$1"@{u} "${1:-HEAD}" && return
+    echo "Warning: could not find fork-point." >&2
+    git merge-base "$1"@{u} "${1:-HEAD}"
+}
+
 glu() {
     # If first parameter is an argument to glog, assume we're operating on HEAD.
     if [[ -z "$1" || "$1" == -* ]]; then
         set -- HEAD "$@"
     fi
-    local forkpoint; forkpoint=$(git merge-base --fork-point "$1"@{u} "$1") || {
-        echo "Could not find fork-point!" >&2
-        return 1
-    }
-    glog "$forkpoint".."$1" "${@:2}"
+    glog $(g-upstream-fork-point "$1").."$1" "${@:2}"
 }
 complete -o default -o nospace -F _complete_git_heads glu
 
 gru() {
-    local forkpoint; forkpoint=$(git merge-base --fork-point @{u}) || {
-        echo "Could not find fork-point!" >&2
-        return 1
-    }
-    git rebase -i "$forkpoint" "$@"
+    git rebase -i $(g-upstream-fork-point) "$@"
 }
 
 gdu() {
@@ -188,18 +189,9 @@ gdu() {
         # Doesn't include uncommited changes, or use fork-point.
         #git diff @{u}...
         # Includes uncommitted changes, but not new untracked files.
-        local forkpoint; forkpoint=$(git merge-base --fork-point @{u}) || {
-            echo "Could not find fork-point!" >&2
-            return 1
-        }
-        git diff -M "$forkpoint" "$@"
+        git diff -M $(g-upstream-fork-point) "$@"
     else
-        local forkpoint
-        forkpoint=$(git merge-base --fork-point "$1"@{u} "$1") || {
-            echo "Could not find fork-point!" >&2
-            return 1
-        }
-        git diff -M "$forkpoint" "$1" "${@:2}"
+        git diff -M $(g-upstream-fork-point "$1") "$1" "${@:2}"
     fi
 }
 complete -o default -o nospace -F _complete_git_heads gdu
@@ -233,18 +225,9 @@ gddu() {
     # Need better argument parsing.
     if [[ -z "$1" ]] || [[ "$1" == -* ]]; then
         # Includes uncommitted changes, but not new untracked files.
-        local forkpoint; forkpoint=$(git merge-base --fork-point @{u}) || {
-            echo "Could not find fork-point!" >&2
-            return 1
-        }
-        gdd "$forkpoint" "$@"
+        gdd $(g-upstream-fork-point) "$@"
     else
-        local forkpoint
-        forkpoint=$(git merge-base --fork-point "$1"@{u} "$1") || {
-            echo "Could not find fork-point!" >&2
-            return 1
-        }
-        gdd "$forkpoint" "$1" "${@:2}"
+        gdd $(g-upstream-fork-point "$1") "$1" "${@:2}"
     fi
 }
 complete -o default -o nospace -F _complete_git_heads gddu
@@ -340,7 +323,7 @@ _gch_rebase_if_necessary() {
     fi
     echo "Previous tip of \"$1\" was $(git rev-parse "$1")"
     # Equivalent to: git rebase --onto "$1"@{u} \
-    #                "$(git merge-base --fork-point "$1"@{u} "$1")" \
+    #                "$(g-upstream-fork-point "$1")" \
     #                "$1" || g-merge-loop
     git rebase --fork-point "$1"@{u} "$1" || g-merge-loop
 }
