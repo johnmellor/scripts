@@ -443,7 +443,7 @@ complete -o default -o nospace -F _complete_git_heads g-rebase-set-upstream
 
 # Posted to http://stackoverflow.com/a/36463546/691281.
 g-fork-off-n() {
-    if [[ $# != 2 || $1 != +([0-9]) ]]; then
+    if [[ $# != 2 || ! $1 =~ ^[0-9]+$ ]]; then
         echo "USAGE: $FUNCNAME <num_commits> <new_branch>" >&2
         return 1
     fi
