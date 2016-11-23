@@ -111,14 +111,6 @@ export PS1='\[${__ansi_green_and_red[$? != 0]}\]$(dayname-2chars)|$(date +%H:%M)
 
 __source_relative git-completion.bash
 
-# TODO: These should be run only once.
-git config --global push.default simple
-git config --global diff.tool meld
-git config --global difftool.prompt false
-git config --global merge.tool p4merge
-git config --global mergetool.keepBackup false
-git config --global merge.conflictstyle diff3
-
 alias gst='git status'
 alias gds='git diff -M --stat'
 alias gdm='git diff -M master'
