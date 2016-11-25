@@ -50,9 +50,11 @@ color-safe-grep() {
             continue
         fi
         if [[ -n $ignore_case ]]; then
-            grep -iP --color=never "$@" | perl -pe "s/$arg/$(tput smso)\$&$(tput rmso)/gi"
+            grep -iP --color=never "$@" | \
+                q="$arg" perl -pe "s/\$ENV{q}/$(tput smso)\$&$(tput rmso)/gi"
         else
-            grep -P --color=never "$@" | perl -pe "s/$arg/$(tput smso)\$&$(tput rmso)/g"
+            grep -P --color=never "$@" | \
+                q="$arg" perl -pe "s/\$ENV{q}/$(tput smso)\$&$(tput rmso)/g"
         fi
         return $?
     done
