@@ -113,6 +113,11 @@ export PS1='\[${__ansi_green_and_red[$? != 0]}\]$(dayname-2chars)|$(date +%H:%M)
 
 __source_relative git-completion.bash
 
+# Allow overriding git config from an environment variable.
+# USAGE: git_config_overrides='-c foo=bar -c baz=qux' git <command>
+# Spaces are not supported in keys/values!
+git() { command git $git_config_overrides "$@"; }
+
 alias gst='git status'
 alias gds='git diff -M --stat'
 alias gdm='git diff -M master'
@@ -477,6 +482,20 @@ git-replace() {
 
 raw-replace() {
     git-replace --no-index "$@"
+}
+
+# Adds intra-line diffs to git diff output. More robust than --color-words.
+# USAGE: wd git diff
+wd() {
+    local diff_highlight
+    if [[ -e /usr/share/git/diff-highlight/diff-highlight ]]; then
+        diff_highlight=(perl /usr/share/git/diff-highlight/diff-highlight)
+    elif [[ -e /usr/share/doc/git/contrib/diff-highlight/diff-highlight ]]; then
+        diff_highlight=(perl /usr/share/doc/git/contrib/diff-highlight/diff-highlight)
+    else
+        diff_highlight=(cat)
+    fi
+    git_config_overrides="-c color.ui=always" "$@" | "${diff_highlight[@]}"
 }
 
 # Published to http://stackoverflow.com/a/12179492/691281
