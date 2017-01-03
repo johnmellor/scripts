@@ -495,7 +495,9 @@ wd() {
     else
         diff_highlight=(cat)
     fi
-    git_config_overrides="-c color.ui=always" "$@" | "${diff_highlight[@]}"
+    # eval quoted printf trick so aliases get expanded properly in "$@"
+    # (http://stackoverflow.com/a/3179059/691281).
+    eval $(printf "%q " git_config_overrides="-c color.ui=always" "$@") | "${diff_highlight[@]}"
 }
 
 # Published to http://stackoverflow.com/a/12179492/691281
