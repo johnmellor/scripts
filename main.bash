@@ -33,6 +33,11 @@ else
     alias ll='ls -lhF'
 fi
 
+# Run command with low cpu and disk priority.
+alias vnice='nice ionice -c 2 -n 7'
+# Run command headless & with low cpu and disk priority.
+alias xvnice='vnice xvfb-run -a -s "-screen 0 1024x768x24"'
+
 strip-ansi() {
     # From http://unix.stackexchange.com/a/4529
     perl -pe 's/\e\[?.*?[\@-~]//g'
