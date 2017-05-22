@@ -194,6 +194,8 @@ gru() {
     git rebase -i $(g-upstream-fork-point) "$@"
 }
 
+alias grr='git rebase -i --root'
+
 gdu() {
     # TODO: "gdu --stat topic" will fail. Only "gdu topic --stat" works. Need
     # better argument parsing.
