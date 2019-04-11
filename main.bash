@@ -499,6 +499,8 @@ wd() {
         diff_highlight=(perl /usr/share/git/diff-highlight/diff-highlight)
     elif [[ -e /usr/share/doc/git/contrib/diff-highlight/diff-highlight ]]; then
         diff_highlight=(perl /usr/share/doc/git/contrib/diff-highlight/diff-highlight)
+    elif [[ -e /usr/share/doc/git/contrib/diff-highlight/diff-highlight.perl ]]; then
+        diff_highlight=(perl /usr/share/doc/git/contrib/diff-highlight/diff-highlight.perl)
     else
         diff_highlight=(cat)
     fi
