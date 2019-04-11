@@ -77,6 +77,18 @@ pager-if-tty() {
     fi
 }
 
+# Destructuring assignment for bash arrays.
+destructure() {
+    (($# >= 3 && $# % 2 == 1)) && [[ ${@:1 + $# / 2:1} == "=" ]] || {
+        echo 'USAGE: destructure k1 k2 _ k3 ... = "${arr[@]}"' >&2
+        return 1
+    }
+    for ((i = 1, j = 2 + $# / 2; i <= $# / 2; i++, j++)); do
+        local -n key="${!i}"
+        key="${!j}"
+    done
+}
+
 # Add -A <your-project-id> to override
 alias gae-up='appcfg.py --oauth2 update .'
 
