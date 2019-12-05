@@ -89,6 +89,11 @@ destructure() {
     done
 }
 
+# Similar to less but with syntax highlighting provided by vim.
+vless() {
+    $(vim -e -T dumb --cmd 'exe "set t_cm=\<C-M>"|echo $VIMRUNTIME|quit' | tr -d '\015')/macros/less.sh "$@"
+}
+
 # Add -A <your-project-id> to override
 alias gae-up='appcfg.py --oauth2 update .'
 
