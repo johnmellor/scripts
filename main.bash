@@ -148,7 +148,7 @@ alias gddm='gdd master'
 # means ref names are all colored red instead of their correct colors.
 alias glog='git log --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)%Creset"'
 alias glog-graph='glog --graph --date-order'  # Slow
-alias gca='git commit -a --amend --no-edit'
+alias gca='git commit --amend --no-edit'
 alias gcm='git checkout master'
 alias gc-='git checkout -'
 alias gdc='git diff -M --cached'
@@ -530,22 +530,22 @@ wd() {
 # (without the -v argument, for verbose mode)
 # TODO: Doesn't handle 3-way merge diffs.
 diff-lines() {
-    local path=
+    local file=
     local line=
     local REPLY
     while IFS= read -r || [[ -n $REPLY ]]; do
         esc=$'\033'
         if [[ $REPLY =~ ---\ (a/)?.* ]]; then
-            if [[ $1 == -v ]]; then if [[ -n $path ]]; then echo; fi; echo "$REPLY"; fi
+            if [[ $1 == -v ]]; then if [[ -n $file ]]; then echo; fi; echo "$REPLY"; fi
             continue
         elif [[ $REPLY =~ \+\+\+\ (b/)?([^[:blank:]$esc]+).* ]]; then
             if [[ $1 == -v ]]; then echo "$REPLY"; fi
-            path=${BASH_REMATCH[2]}
+            file=${BASH_REMATCH[2]}
         elif [[ $REPLY =~ @@\ -[0-9]+(,[0-9]+)?\ \+([0-9]+)(,[0-9]+)?\ @@.* ]]; then
             if [[ $1 == -v ]]; then echo "$REPLY"; fi
             line=${BASH_REMATCH[2]}
         elif [[ $REPLY =~ ^($esc\[[0-9;]+m)*([\ +-]) ]]; then
-            echo "$path:$line:$REPLY"
+            echo "$file:$line:$REPLY"
             if [[ ${BASH_REMATCH[2]} != - ]]; then
                 ((line++))
             fi
