@@ -1,5 +1,9 @@
 #!/bin/bash
 
+export LESS=-FR
+command less "$@"
+exit
+
 # n.b. I posted this script to:
 # http://unix.stackexchange.com/a/205260/85237
 
