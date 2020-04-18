@@ -594,8 +594,7 @@ if [[ $OSTYPE == "cygwin" || $OSTYPE == "msys" ]]; then
     __source_relative windows.bash
 fi
 if [[ $(uname -r) =~ [Mm]icrosoft ]]; then
-    alias explorer='explorer.exe'
-    alias subl='subl.exe'
+    true  # Put WSL customizations here.
 fi
 
 
