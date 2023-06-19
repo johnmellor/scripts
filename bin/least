@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export LESS="-FR --mouse --wheel-lines=3"
+export LESS=-FR
 command less "$@"
 exit
 
