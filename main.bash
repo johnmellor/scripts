@@ -38,6 +38,17 @@ alias vnice='nice ionice -c 2 -n 7'
 # Run command headless & with low cpu and disk priority.
 alias xvnice='vnice xvfb-run -a -s "-screen 0 1024x768x24"'
 
+time10() {
+  times=10
+  start_time=$(date +%s.%N)
+  for ((i=0; i < times; i++)) ; do
+      "$@" &> /dev/null
+  done
+  end_time=$(date +%s.%N)
+  echo -n "Real time, avg of ${times} runs: "
+  bc -l <<< "($end_time - $start_time) / $times"
+}
+
 strip-ansi() {
     # From http://unix.stackexchange.com/a/4529
     perl -pe 's/\e\[?.*?[\@-~]//g'
@@ -96,6 +107,37 @@ vless() {
 
 # Add -A <your-project-id> to override
 alias gae-up='appcfg.py --oauth2 update .'
+
+# Ping yourself when the wrapped command fails. Requires `chatme` on your PATH.
+# chatmon() {
+#     tmpfile=$(mktemp --tmpdir chatmon-err.XXXXXXXXXX)
+#     trap "{ rm -f '$tmpfile'; }" EXIT
+#     tmpfifo=$(mktemp -u --tmpdir chatmon-fifo.XXXXXXXXXX)
+#     mkfifo -m 600 "$tmpfifo"
+#     trap "{ rm -f '$tmpfifo'; }" EXIT
+#     # This variant sends only stderr. Unfortunately the added latency
+#     # causes stdout and stderr to display out of sync.
+#     "$@" 2> >(tee "$tmpfile"; : >"$tmpfifo")
+#     ret=$?
+#     read <"$tmpfifo"  # Wait for tee to finish.
+#     if (($ret != 0)); then
+#         cat <(echo -e "Failed: $*\n") $tmpfile | chatme
+#     fi
+# }
+chatmon() {(
+    set -o pipefail
+    if [[ $# -eq 0 || $1 == "-h" || $1 == "--help" ]]; then
+        echo "USAGE: ${FUNCNAME[0]} some_command and its arguments"
+        return
+    fi
+    tmpfile=$(mktemp --tmpdir chatmon.XXXXXXXXXX)
+    trap "{ rm -f '$tmpfile'; }" EXIT
+    "$@" |& tee "$tmpfile" || {
+        ret=$?
+        cat <(echo -e "Failed: $*\n") $tmpfile | chatme
+        return $ret
+    }
+)}
 
 
 # HELPERS
