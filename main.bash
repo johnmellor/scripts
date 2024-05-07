@@ -538,10 +538,15 @@ git-replace() {
             shift
         fi
     done
+    local regex
+    local repl
+    # Escape $ & @ for perl.
+    regex=$(printf "$1" | sed 's/[@$]/\\&/g')
+    repl=$(printf "$2" | sed 's/[@$]/\\&/g')
     local file
     git grep $noindex $grepignorecase -lP "$1" | while IFS= read -r file || [[ -n $file ]]; do
         # Cygwin and MSYS don't support perl -i without backup :-|
-        perl -i.gitreplacebak -pe "s%$1%$2%g$perlignorecase" "$file" &&
+        perl -wi.gitreplacebak -pe "s%$regex%$repl%g$perlignorecase" "$file" &&
         rm "$file.gitreplacebak"
     done
 }
@@ -607,13 +612,16 @@ diff-replace() {
         echo 'USAGE: git diff | diff-replace "(hello.*)world" "\1universe"'
         return 1
     fi
+    # Escape $ & @ for perl.
+    regex=$(printf "$1" | sed 's/[@$]/\\&/g')
+    repl=$(printf "$2" | sed 's/[@$]/\\&/g')
     local REPLY
     strip-ansi | diff-lines | tac | while IFS= read -r || [[ -n $REPLY ]]; do
         if [[ $REPLY =~ ^([^:]+):([0-9]+):\+ ]]; then
             local file_path=${BASH_REMATCH[1]}
             local file_line=${BASH_REMATCH[2]}
             # TODO: Should call perl once per file, not once per added line!
-            perl -pi -e "s%$1%$2%g if \$. == $file_line" "$file_path"
+            perl -wi -pe "s%$regex%$repl%g if \$. == $file_line" "$file_path"
         fi
     done
 }
