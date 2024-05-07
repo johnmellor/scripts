@@ -108,7 +108,27 @@ vless() {
 # Add -A <your-project-id> to override
 alias gae-up='appcfg.py --oauth2 update .'
 
-# Ping yourself when the wrapped command fails. Requires `chatme` on your PATH.
+tick_emoji="✔️"
+cross_emoji="❌"
+
+# Show desktop notification with exit status when long running command finishes.
+# Usage:
+#   sleep 10; donealert
+#alias donealert='notify-send --urgency=low -i "$([ $? = 0 ] && echo "${tick_emoji}" || echo "${cross_emoji}")" "$(history 1|sed -E '\''s/^\s*[0-9]+\s*//;s/\[[0-9]{4}-[0-9]{2}-[0-9]{2}\s[0-9]{2}:[0-9]{2}:[0-9]{2}\s\+[0-9]{4}\]\s+//;s/[;&|]\s*donealert$//'\'')"'
+alias donealert='notify-send --urgency=low -i "$([ $? = 0 ] && echo "${tick_emoji}" || echo "${cross_emoji}")" "$(fc -ln -1|sed -E '\''1 s/^\s+//;s/[;&|]\s*donealert$//'\'')"'
+
+# Ping yourself a chat message with exit status when long running command
+# finishes. Requires `chatme` on your PATH.
+# Usage:
+#   sleep 10; donechat
+#alias donechat='chatme "$([ $? = 0 ] && echo "${tick_emoji}" || echo "${cross_emoji}")" "$(history 1|sed -E '\''s/^\s*[0-9]+\s*//;s/\[[0-9]{4}-[0-9]{2}-[0-9]{2}\s[0-9]{2}:[0-9]{2}:[0-9]{2}\s\+[0-9]{4}\]\s+//;s/[;&|]\s*donechat$//'\'')"'
+alias donechat='chatme "$([ $? = 0 ] && echo "${tick_emoji}" || echo "${cross_emoji}")" "$(fc -ln -1|sed -E '\''1 s/^\s+//;s/[;&|]\s*donechat$//'\'')"'
+
+
+# Ping yourself a chat message with stdout+stderr, only if the wrapped command
+# fails. Requires `chatme` on your PATH.
+# Usage:
+#   chatmon sleep 10
 # chatmon() {
 #     tmpfile=$(mktemp --tmpdir chatmon-err.XXXXXXXXXX)
 #     trap "{ rm -f '$tmpfile'; }" EXIT
