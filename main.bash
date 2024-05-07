@@ -628,6 +628,14 @@ diff-replace() {
 alias dr='diff-replace'
 
 
+# PROCESS TREES
+
+pt() { pstree -h -U -T -l -Cage "$USER" "$@" | $PAGER; }
+pta() { pstree -h -U -T -l -Cage --arguments "$USER" "$@" | $PAGER; }
+ptp() { pstree -h -U -T -l -Cage -p -g "$USER" "$@" | $PAGER; }
+ptpa() { pstree -h -U -T -l -Cage -p -g --arguments "$USER" "$@" | $PAGER; }
+
+
 # ALIAS CREATION
 
 als() {
