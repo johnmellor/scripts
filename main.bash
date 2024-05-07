@@ -636,6 +636,12 @@ ptp() { pstree -h -U -T -l -Cage -p -g "$USER" "$@" | $PAGER; }
 ptpa() { pstree -h -U -T -l -Cage -p -g --arguments "$USER" "$@" | $PAGER; }
 
 
+# DISABLE FLOW CONTROL SO CTRL+S CAN SEARCH FORWARDS THROUGH SHELL HISTORY
+
+# https://superuser.com/a/1067896
+stty -ixon
+
+
 # ALIAS CREATION
 
 als() {
