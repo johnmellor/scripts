@@ -204,14 +204,14 @@ git() { command git $git_config_overrides "$@"; }
 
 alias gst='git status'
 alias gds='git diff -M --stat'
-alias gdm='git diff -M master'
-alias gddm='gdd master'
+alias gdm='git diff -M $(g-main)'
+alias gddm='gdd $(g-main)'
 # Added author and relative date to oneline format (unfortunately this
 # means ref names are all colored red instead of their correct colors.
 alias glog='git log --format="%C(yellow)%h%Creset%C(red bold)%d %C(bold blue)%an:%Creset%Creset %s %Cgreen(%cr)%Creset"'
 alias glog-graph='glog --graph --date-order'  # Slow
 alias gca='git commit --amend --no-edit'
-alias gcm='git checkout master'
+alias gcm='git checkout $(g-main)'
 alias gc-='git checkout -'
 alias gdc='git diff -M --cached'
 alias gcp='git cherry-pick'
@@ -227,6 +227,28 @@ _complete_git_heads()
 _complete_git_refs() {
     local cur words cword prev; _get_comp_words_by_ref -n =: cur words cword prev;
     __gitcomp "$(__git_refs)"
+}
+
+# Prints name of the (main/master) local branch that is tracking origin/HEAD.
+#
+# If multiple local branches are pulling directly from origin/HEAD, this will
+# print the one with the most recent commit, but that is obviously brittle.
+#
+# Note that the origin/HEAD of the local repository is set when it is cloned and
+# won't automatically update if the remote repository changes its HEAD branch.
+# Use `git remote set-head origin --auto` to update origin/HEAD in this case. Or
+# to take this into account one could run `git remote show origin` but that
+# takes almost half a second. Its output would contain the name of the remote
+# HEAD:
+# > HEAD branch: master
+# and a list of local branches that track and push from/to each remote branch:
+# > Local branch configured for 'git pull':
+# >   master merges with remote master
+# > Local ref configured for 'git push':
+# >   master pushes to master (up to date)`
+
+g-main() {
+    git for-each-ref --format='%(refname:short) <- %(upstream:short)' refs/heads --sort=-committerdate | grep -E " <- $(git rev-parse --abbrev-ref origin/HEAD)$" | { read -r first _; echo $first; }
 }
 
 # Prints name of current branch, or if HEAD is detached this
@@ -472,11 +494,12 @@ complete -o default -o nospace -F _complete_git_heads gch
 # branches it depends on.
 g-ancestors() {
     local branch; branch="${1:-$(g-current-branch)}" || return 1
+    local main; main="$(g-main)" || return 1
     declare -a branches
     while true; do
         branches=("$branch" "${branches[@]}")  # Prepend
         branch="$(gu "$branch")" || return 1
-        [[ $branch == "master" || $branch == */* ]] && break
+        [[ $branch == "$main" || $branch == */* ]] && break
     done
     for b in "${branches[@]}"; do
         echo "$b"
