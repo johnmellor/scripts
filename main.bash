@@ -620,23 +620,26 @@ wd() {
 # (without the -v argument, for verbose mode)
 # TODO: Doesn't handle 3-way merge diffs.
 diff-lines() {
-    local file=
+    local esc=$'\e'
+    local ansi=$'\e\\[[0-9;]*m'
+    local REPLY=
+    local path=
     local line=
-    local REPLY
+    # For each line in stdin...
     while IFS= read -r || [[ -n $REPLY ]]; do
-        esc=$'\033'
-        if [[ $REPLY =~ ---\ (a/)?.* ]]; then
-            if [[ $1 == -v ]]; then if [[ -n $file ]]; then echo; fi; echo "$REPLY"; fi
+        # ...match the start of the line, ignoring leading ANSI escapes.
+        if [[ $REPLY =~ ^($ansi)*---\ (a/)?.* ]]; then
+            if [[ $1 == -v ]]; then if [[ -n $path ]]; then echo; fi; echo "$REPLY"; fi
             continue
-        elif [[ $REPLY =~ \+\+\+\ (b/)?([^[:blank:]$esc]+).* ]]; then
+        elif [[ $REPLY =~ ^($ansi)*\+\+\+\ (b/)?([^[:blank:]$esc]+).* ]]; then
             if [[ $1 == -v ]]; then echo "$REPLY"; fi
-            file=${BASH_REMATCH[2]}
-        elif [[ $REPLY =~ @@\ -[0-9]+(,[0-9]+)?\ \+([0-9]+)(,[0-9]+)?\ @@.* ]]; then
+            path=${BASH_REMATCH[3]}
+        elif [[ $REPLY =~ ^($ansi)*@@\ -[0-9]+(,[0-9]+)?\ \+([0-9]+)(,[0-9]+)?\ @@.* ]]; then
             if [[ $1 == -v ]]; then echo "$REPLY"; fi
-            line=${BASH_REMATCH[2]}
-        elif [[ $REPLY =~ ^($esc\[[0-9;]+m)*([\ +-]) ]]; then
-            echo "$file:$line:$REPLY"
-            if [[ ${BASH_REMATCH[2]} != - ]]; then
+            line=${BASH_REMATCH[3]}
+        elif [[ $REPLY =~ ^($ansi)*([\ +-\\]) ]]; then
+            echo "$path:$line:$REPLY"
+            if [[ ${BASH_REMATCH[2]} =~ [\ +] ]]; then
                 ((line++))
             fi
         fi
