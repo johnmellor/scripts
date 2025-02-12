@@ -6,7 +6,12 @@ shopt -s histappend
 # Whenever displaying the prompt, write the previous line to disk
 export PROMPT_COMMAND="history -a"
 
-export PAGER='least'
+# If `PAGER` is changed (e.g. back to `least`), make sure to set `DELTA_PAGER`
+# to `less` to keep [git-]delta's navigation feature working:
+# https://dandavison.github.io/delta/navigation-keybindings-for-large-diffs.html
+export PAGER='less'
+export LESS='-FR'
+
 export EDITOR='subl --wait'
 
 
