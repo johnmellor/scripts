@@ -588,9 +588,9 @@ git-replace() {
     done
     local regex
     local repl
-    # Escape $ & @ for perl.
-    regex=$(printf "$1" | sed 's/[@$]/\\&/g')
-    repl=$(printf "$2" | sed 's/[@$]/\\&/g')
+    # Escape $ & @ for perl. Use %s so printf doesn't expand escapes like \b.
+    regex=$(printf "%s" "$1" | sed 's/[@$]/\\&/g')
+    repl=$(printf "%s" "$2" | sed 's/[@$]/\\&/g')
     local file
     git grep $noindex $grepignorecase -lP "$1" | while IFS= read -r file || [[ -n $file ]]; do
         # Cygwin and MSYS don't support perl -i without backup :-|
@@ -663,9 +663,9 @@ diff-replace() {
         echo 'USAGE: git diff | diff-replace "(hello.*)world" "\1universe"'
         return 1
     fi
-    # Escape $ & @ for perl.
-    regex=$(printf "$1" | sed 's/[@$]/\\&/g')
-    repl=$(printf "$2" | sed 's/[@$]/\\&/g')
+    # Escape $ & @ for perl. Use %s so printf doesn't expand escapes like \b.
+    regex=$(printf "%s" "$1" | sed 's/[@$]/\\&/g')
+    repl=$(printf "%s" "$2" | sed 's/[@$]/\\&/g')
     local REPLY
     strip-ansi | diff-lines | tac | while IFS= read -r || [[ -n $REPLY ]]; do
         if [[ $REPLY =~ ^([^:]+):([0-9]+):\+ ]]; then
