@@ -693,6 +693,31 @@ ptpa() { pstree -h -U -T -l -Cage -p -g --arguments "$USER" "$@" | $PAGER; }
 stty -ixon
 
 
+# MAKE CTRL+X+E NOT EXECUTE THE EDITED COMMAND IMMEDIATELY
+
+# Inspired by https://superuser.com/q/1601543.
+_edit_without_executing() {
+    local editor="${EDITOR:-nano}"
+    local tempfile="$(mktemp)"
+    printf '%s' "$READLINE_LINE" > "$tempfile"
+    "$editor" "$tempfile"
+    local editor_status=$?
+    if [[ $editor_status -eq 0 ]]; then
+      # Bizarrely, if you use "$(<"$tempfile")" here instead, it assigns the
+      # exact same string to READLINE_LINE, but then when you execute it bash
+      # only executes the first word of that string!
+      READLINE_LINE="$(cat "$tempfile")"
+      # Set cursor position to end of the (potentially new) line.
+      READLINE_POINT="${#READLINE_LINE}"
+    fi
+    # Didn't use a trap to avoid overwriting any existing traps.
+    \rm -f "$tempfile"  # -f for those who have alias rm='rm -i'
+    return $editor_status
+}
+
+bind -x '"\C-x\C-e":_edit_without_executing'
+
+
 # ALIAS CREATION
 
 als() {
