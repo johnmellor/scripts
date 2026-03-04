@@ -1,5 +1,5 @@
 # Automatically add completion for all aliases to commands having completion functions
-# https://superuser.com/revisions/437508/21
+# Fork of https://superuser.com/revisions/437508/21
 function alias_completion {
     local namespace="alias_completion"
 
@@ -22,11 +22,36 @@ function alias_completion {
         eval "local alias_tokens; alias_tokens=($line)" 2>/dev/null || continue # some alias arg patterns cause an eval parse error
         local alias_name="${alias_tokens[0]}" alias_cmd="${alias_tokens[1]}" alias_args="${alias_tokens[2]# }"
 
-        # skip aliases to pipes, boolan control structures and other command lists
-        # (leveraging that eval errs out if $alias_args contains unquoted shell metacharacters)
-        eval "local alias_arg_words; alias_arg_words=($alias_args)" 2>/dev/null || continue
-        # avoid expanding wildcards
-        read -a alias_arg_words <<< "$alias_args"
+        # Skip aliases to pipes, boolean control structures and other command lists,
+        # by leveraging that bash errs when unquoted metacharacters appear in an array
+        # assignment (e.g. `x=(cmd1 | cmd2)` is a syntax error).
+        #
+        # We can't just `eval "x=($alias_args)"` because that would execute command
+        # substitutions ($(), ``, and even <(), >()). Instead we escape $, (, ), `
+        # and disable globbing (set -f), so eval parses without side effects.
+        #
+        # This also determines the word count for COMP_CWORD: each escaped $(...)
+        # becomes a single literal word (e.g. `\$\(g-main\)`), which is correct for
+        # quoted "$(cmd)" and for unquoted $(cmd) that expands to a single word.
+        # Unquoted $(cmd) that expands to multiple words at runtime will have an
+        # approximate count — a pre-existing limitation since the wrapper bakes in
+        # a fixed COMP_CWORD offset regardless.
+        #
+        # Limitation: if unquoted $() contains metacharacters (e.g. `$(cmd | pipe)`),
+        # escaping the parens exposes them to the top-level parser, falsely rejecting
+        # the alias. This is acceptable since such aliases have unknowable word counts.
+        local _safe="${alias_args//\$/\\\$}"
+        _safe="${_safe//\(/\\(}"
+        _safe="${_safe//\)/\\)}"
+        _safe="${_safe//\`/\\\`}"
+        local _had_noglob=0; [[ $- == *f* ]] && _had_noglob=1
+        set -o noglob
+        eval "local alias_arg_words; alias_arg_words=($_safe)" 2>/dev/null
+        local _eval_ok=$?
+        (( _had_noglob )) || set +o noglob
+        if (( _eval_ok != 0 )); then
+            continue
+        fi
 
         # skip alias if there is no completion function triggered by the aliased command
         if [[ ! " ${completions[*]} " =~ " $alias_cmd " ]]; then
