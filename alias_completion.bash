@@ -8,9 +8,15 @@ function alias_completion {
     # parse alias definitions, where capture group 1 => trigger, 2 => command, 3 => command arguments
     local alias_regex="alias ([^=]+)='(\"[^\"]+\"|[^ ]+)(( +[^ ]+)*)'"
 
-    # create array of function completion triggers, keeping multi-word triggers together
-    eval "local completions=($(complete -p | sed -Ene "/$compl_regex/s//'\3'/p"))"
-    (( ${#completions[@]} == 0 )) && return 0
+    # build associative array of completion specs (trigger => full spec line)
+    local _compl_line
+    declare -A _comp_specs
+    while IFS= read -r _compl_line; do
+        if [[ $_compl_line =~ $compl_regex ]]; then
+            _comp_specs["${BASH_REMATCH[3]}"]="$_compl_line"
+        fi
+    done < <(complete -p 2>/dev/null)
+    (( ${#_comp_specs[@]} == 0 )) && return 0
 
     # create temporary file for wrapper functions and completions
     local tmp_file; tmp_file=$(mktemp 2>/dev/null || mktemp -t 'tmp') || return 1
@@ -44,28 +50,26 @@ function alias_completion {
         _safe="${_safe//\(/\\(}"
         _safe="${_safe//\)/\\)}"
         _safe="${_safe//\`/\\\`}"
-        local _had_noglob=0; [[ $- == *f* ]] && _had_noglob=1
+        local _had_noglob; [[ $- == *f* ]] && _had_noglob=1
         set -o noglob
         eval "local alias_arg_words; alias_arg_words=($_safe)" 2>/dev/null
         local _eval_ok=$?
-        (( _had_noglob )) || set +o noglob
-        if (( _eval_ok != 0 )); then
-            continue
-        fi
+        [[ -z $_had_noglob ]] && set +o noglob
+        (( _eval_ok != 0 )) && continue
 
         # skip alias if there is no completion function triggered by the aliased command
-        if [[ ! " ${completions[*]} " =~ " $alias_cmd " ]]; then
+        if [[ ! -v _comp_specs[$alias_cmd] ]]; then
             if [[ -n "$completion_loader" ]]; then
                 # force loading of completions for the aliased command
                 eval "$completion_loader $alias_cmd"
                 # 124 means completion loader was successful
                 [[ $? -eq 124 ]] || continue
-                completions+=($alias_cmd)
+                _comp_specs["$alias_cmd"]="$(complete -p "$alias_cmd" 2>/dev/null)"
             else
                 continue
             fi
         fi
-        local new_completion="$(complete -p "$alias_cmd")"
+        local new_completion="${_comp_specs[$alias_cmd]}"
 
         # create a wrapper inserting the alias arguments if any
         if [[ -n $alias_args ]]; then
