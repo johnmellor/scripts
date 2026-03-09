@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""pgreptree — grep for processes, show their trees.
+
+Matches a regex against all running process command lines, finds the
+topmost (disjoint root) matches — i.e. matched processes whose ancestors
+don't also match — and runs pstree on each one.
+"""
+
+import argparse
+import concurrent.futures
+import os
+import re
+import subprocess
+import sys
+from dataclasses import dataclass
+
+
+@dataclass(slots=True)
+class Proc:
+    pid: int
+    ppid: int
+    args: str
+
+
+# Regex to split out ANSI escape sequences to avoid mangling them
+ANSI_RE = re.compile(
+    r'('
+    r'\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]' # CSI: Controls colors, cursor, etc.
+    r'|\x1b\][^\x07\x1b]*?(?:\x07|\x1b\\)' # OSC: OS Commands (titles, hyperlinks)
+    r'|\x1b[\(\)][A-Za-z0-9]' # Charset selections (e.g., \x1b(B to reset to ASCII)
+    r')'
+)
+
+
+def highlight_args(args: str, pattern: re.Pattern[str], full: bool, match_path: bool) -> str:
+    if full:
+        return pattern.sub(r'\033[7m\g<0>\033[27m', args)
+
+    m = re.match(r'^(\S+)(.*)$', args, re.DOTALL)
+    if not m:
+        return args
+    exec_path, rest = m.group(1), m.group(2)
+
+    target = exec_path if match_path else os.path.basename(exec_path)
+    idx = exec_path.rfind(target)
+    if idx == -1:
+        return args
+    highlighted_target = pattern.sub(r'\033[7m\g<0>\033[27m', target)
+    res = exec_path[:idx] + highlighted_target + exec_path[idx+len(target):]
+
+    return res + rest
+
+
+def highlight_pstree(stdout: str, pattern: re.Pattern[str], full: bool, match_path: bool, procs: dict[int, Proc]) -> str:
+    out = []
+
+    for line in stdout.splitlines(keepends=True):
+        parts = ANSI_RE.split(line)
+        plain_text = "".join(parts[::2])
+        m = re.match(r'^([ \t│├└─]*)(.*?)(,\d+(?:,\d+)?)(.*)$', plain_text)
+        
+        if not m:
+            if full:
+                for i in range(0, len(parts), 2):
+                    parts[i] = pattern.sub(r'\033[7m\g<0>\033[27m', parts[i])
+            out.append("".join(parts))
+            continue
+
+        prefix, executable, pid_pgid, args_text = m.groups()
+        pid = int(pid_pgid.split(',')[1])
+
+        # pstree truncates the executable name to 15 characters (Linux comm length limit).
+        # We look up the original process by PID to retrieve the true executable name (true_exec)
+        # so that our regex matching aligns with the full word the user conceptually searched for.
+        p = procs.get(pid)
+        if p:
+            exec_path = p.args.split()[0] if p.args.strip() else ""
+            true_exec = os.path.basename(exec_path) or executable
+            path = exec_path.removesuffix(true_exec)
+        else:
+            # Should only happen if a process started between ps and pstree calls.
+            path = ""
+            true_exec = executable
+
+        # Reconstruct the string we logically matched against in find_matches()
+        if full:
+            target = path + true_exec + args_text
+        elif match_path:
+            target = path + true_exec
+        else:
+            target = true_exec
+
+        path_len = len(path) if (full or match_path) else 0
+        prefix_len = len(prefix)
+        exec_len = len(executable)
+        true_exec_len = len(true_exec)
+        pid_len = len(pid_pgid)
+
+        intervals = []
+        for match in pattern.finditer(target):
+            s, e = match.start() - path_len, match.end() - path_len
+            if s >= e or e <= 0:
+                continue
+            s = max(0, s)
+
+            # Map the match intervals found in true_exec back onto the potentially 
+            # truncated executable string rendered by pstree.
+            if s < true_exec_len:
+                left_start = s
+                left_end = min(e, true_exec_len)
+                if left_start < exec_len:
+                    clamped_end = min(left_end, exec_len)
+                    intervals.append((prefix_len + left_start, prefix_len + clamped_end))
+            
+            # Map matches in args_text, cleanly leaping over the inserted pid_pgid string.
+            if e > true_exec_len:
+                right_start = max(s, true_exec_len)
+                arg_s = right_start - true_exec_len
+                arg_e = e - true_exec_len
+                intervals.append((prefix_len + exec_len + pid_len + arg_s, 
+                                  prefix_len + exec_len + pid_len + arg_e))
+
+        if not intervals:
+            out.append("".join(parts))
+            continue
+
+        res = []
+        plain_idx = 0
+        for i, part in enumerate(parts):
+            if i % 2 != 0:
+                res.append(part)
+            else:
+                for char in part:
+                    for strt, end in intervals:
+                        if plain_idx == strt:
+                            res.append('\033[7m')
+                        if plain_idx == end:
+                            res.append('\033[27m')
+                    res.append(char)
+                    plain_idx += 1
+                    
+        for strt, end in intervals:
+            if plain_idx == end:
+                res.append('\033[27m')
+                
+        out.append("".join(res))
+
+    return "".join(out)
+
+
+def parse_ps_output() -> dict[int, Proc]:
+    proc = subprocess.Popen(
+        ["ps", "--no-headers", "-ww", "-eo", "pid,ppid,args"],
+        stdout=subprocess.PIPE, text=True,
+    )
+    stdout, _ = proc.communicate()
+    if proc.returncode != 0:
+        sys.exit(f"ps failed with exit code {proc.returncode}")
+
+    procs: dict[int, Proc] = {}
+    for line in stdout.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) < 3:
+            continue
+        try:
+            procs[int(parts[0])] = Proc(int(parts[0]), int(parts[1]), parts[2])
+        except ValueError:
+            continue
+            
+    procs.pop(proc.pid, None)
+    return procs
+
+
+def find_matches(procs: dict[int, Proc], pattern: re.Pattern[str], full: bool, match_path: bool) -> set[int]:
+    my_pid = os.getpid()
+    matched = set()
+    for p in procs.values():
+        if p.pid == my_pid:
+            continue
+            
+        if full:
+            target = p.args
+        else:
+            # First word is the executable path
+            exec_path = p.args.split()[0] if p.args.strip() else ""
+            target = exec_path if match_path else os.path.basename(exec_path)
+            
+        if pattern.search(target):
+            matched.add(p.pid)
+                
+    return matched
+
+
+def disjoint_roots(procs: dict[int, Proc], matched: set[int]) -> list[int]:
+    roots = []
+    for pid in matched:
+        cur = procs[pid].ppid
+        while cur in procs:
+            if cur in matched:
+                break
+            cur = procs[cur].ppid
+        else:
+            roots.append(pid)
+    return sorted(roots)
+
+
+def get_tree(pid: int, pattern: re.Pattern[str], full: bool, match_path: bool, procs: dict[int, Proc]) -> str:
+    res = subprocess.run([
+        "pstree", "-hlUTg", "-C", "age", "-p", "--arguments", str(pid),
+    ], capture_output=True, text=True)
+
+    return highlight_pstree(res.stdout, pattern, full, match_path, procs)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="grep for processes, then show their trees",
+    )
+    parser.add_argument("pattern", help="regex to match against process args")
+    parser.add_argument(
+        "-I", "--case", action="store_true",
+        help="case-sensitive matching (default is case-insensitive)",
+    )
+    parser.add_argument(
+        "-w", "--word", action="store_true",
+        help="match whole words only"
+    )
+    parser.add_argument(
+        "-f", "--full", action="store_true",
+        help="match against full command line instead of just the executable name "
+             "(implicitly enabled if pattern contains a space)"
+    )
+    parser.add_argument(
+        "-x", "--exact", action="store_true",
+        help="require an exact match of the executable (or full command line if -f)"
+    )
+    parser.add_argument(
+        "-p", "--path", action="store_true",
+        help="match against full executable path instead of basename "
+             "(implicitly enabled if pattern contains '/')"
+    )
+    args = parser.parse_args()
+
+    if " " in args.pattern:
+        args.full = True
+    if "/" in args.pattern:
+        args.path = True
+
+    flags = 0 if args.case else re.IGNORECASE
+    
+    pattern_str = args.pattern
+    if args.word:
+        pattern_str = rf"(?:\b|_)(?:{pattern_str})(?:\b|_)"
+    if args.exact:
+        pattern_str = rf"^(?:{pattern_str})$"
+        
+    try:
+        pattern = re.compile(pattern_str, flags)
+    except re.error as e:
+        parser.error(f"bad regex: {e}")
+
+    procs = parse_ps_output()
+    matched = find_matches(procs, pattern, args.full, args.path)
+    if not matched:
+        sys.exit(1)
+
+    roots = disjoint_roots(procs, matched)
+    
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        trees = list(executor.map(lambda p: get_tree(p, pattern, args.full, args.path, procs), roots))
+
+    for i, (pid, tree) in enumerate(zip(roots, trees)):
+        if i:
+            print(flush=True)
+        highlighted_args = highlight_args(procs[pid].args, pattern, args.full, args.path)
+        print(f"\033[1m=== PID {pid}: {highlighted_args} ===\033[0m", flush=True)
+        sys.stdout.write(tree)
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except BrokenPipeError:
+        sys.stderr.close()
+        sys.exit(141)
