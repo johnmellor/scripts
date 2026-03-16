@@ -12,14 +12,30 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+# Matched against basename(exe) to detect interpreter-launched scripts, so that
+# we also match/highlight argv[1] (the script path).
+# We use exe rather than comm because comm is truncated to 15 chars and because
+# comm is set to the *script* name (not the interpreter) for shebang scripts.
+INTERPRETERS = re.compile(
+    r'^(python[0-9.]*|bash|sh|dash|zsh|fish|perl[0-9.]*|ruby[0-9.]*'
+    r'|node|deno|bun|Rscript|lua[0-9.]*|php[0-9.]*|java|tclsh[0-9.]*)$'
+)
 
 
 @dataclass(slots=True)
 class Proc:
     pid: int
     ppid: int
+    comm: str
+    exe: str       # from /proc/pid/exe; resolves symlinks to the real ELF binary
     args: str
+    # Candidate names to match patterns against, in priority order:
+    # argv[0], exe, comm, then argv[1] (for interpreter scripts).
+    # Each entry is a path (e.g. "/usr/bin/hg") or bare name (e.g. "hg").
+    names: list[str] = field(default_factory=list)
 
 
 # Regex to split out ANSI escape sequences to avoid mangling them
@@ -32,23 +48,70 @@ ANSI_RE = re.compile(
 )
 
 
-def highlight_args(args: str, pattern: re.Pattern[str], full: bool, match_path: bool) -> str:
+def _match_name(name: str, pattern: re.Pattern[str], match_path: bool) -> bool:
+    target = name if match_path else os.path.basename(name)
+    return bool(pattern.search(target))
+
+
+def highlight_args(args: str, pattern: re.Pattern[str], full: bool, match_path: bool,
+                   names: list[str]) -> str:
+    """Highlight pattern matches in the header line (=== PID ...: args ===)."""
     if full:
         return pattern.sub(r'\033[7m\g<0>\033[27m', args)
 
-    m = re.match(r'^(\S+)(.*)$', args, re.DOTALL)
-    if not m:
-        return args
-    exec_path, rest = m.group(1), m.group(2)
+    for name in names:
+        target = name if match_path else os.path.basename(name)
+        if not pattern.search(target):
+            continue
 
-    target = exec_path if match_path else os.path.basename(exec_path)
-    idx = exec_path.rfind(target)
-    if idx == -1:
-        return args
-    highlighted_target = pattern.sub(r'\033[7m\g<0>\033[27m', target)
-    res = exec_path[:idx] + highlighted_target + exec_path[idx+len(target):]
+        idx = args.find(name)
+        if idx == -1:
+            bn = os.path.basename(name)
+            idx = args.find(bn)
+            if idx == -1:
+                continue
+            name = bn
 
-    return res + rest
+        before = args[:idx]
+        target = name if match_path else os.path.basename(name)
+        target_start = idx if match_path else idx + len(name) - len(target)
+        highlighted = pattern.sub(r'\033[7m\g<0>\033[27m', target)
+        return args[:target_start] + highlighted + args[idx + len(name):]
+
+    return args
+
+
+def _apply_intervals(parts: list[str], intervals: list[tuple[int, int]]) -> str:
+    res = []
+    plain_idx = 0
+    for i, part in enumerate(parts):
+        if i % 2 != 0:
+            res.append(part)
+        else:
+            for char in part:
+                for strt, end in intervals:
+                    if plain_idx == strt:
+                        res.append('\033[7m')
+                    if plain_idx == end:
+                        res.append('\033[27m')
+                res.append(char)
+                plain_idx += 1
+    for _, end in intervals:
+        if plain_idx == end:
+            res.append('\033[27m')
+    return "".join(res)
+
+
+def _splice_into_parts(parts: list[str], plain_pos: int, text: str) -> None:
+    """Insert text (may contain ANSI codes) at a plain-text offset in parts."""
+    char_count = 0
+    for i in range(0, len(parts), 2):
+        part_len = len(parts[i])
+        if char_count + part_len >= plain_pos:
+            split_at = plain_pos - char_count
+            parts[i] = parts[i][:split_at] + text + parts[i][split_at:]
+            return
+        char_count += part_len
 
 
 def highlight_pstree(stdout: str, pattern: re.Pattern[str], full: bool, match_path: bool, procs: dict[int, Proc]) -> str:
@@ -69,88 +132,95 @@ def highlight_pstree(stdout: str, pattern: re.Pattern[str], full: bool, match_pa
         prefix, executable, pid_pgid, args_text = m.groups()
         pid = int(pid_pgid.split(',')[1])
 
-        # pstree truncates the executable name to 15 characters (Linux comm length limit).
-        # We look up the original process by PID to retrieve the true executable name (true_exec)
-        # so that our regex matching aligns with the full word the user conceptually searched for.
-        p = procs.get(pid)
-        if p:
-            exec_path = p.args.split()[0] if p.args.strip() else ""
-            true_exec = os.path.basename(exec_path) or executable
-            path = exec_path.removesuffix(true_exec)
-        else:
-            # Should only happen if a process started between ps and pstree calls.
-            path = ""
-            true_exec = executable
-
-        # Reconstruct the string we logically matched against in find_matches()
         if full:
-            target = path + true_exec + args_text
-        elif match_path:
-            target = path + true_exec
-        else:
-            target = true_exec
-
-        path_len = len(path) if (full or match_path) else 0
-        prefix_len = len(prefix)
-        exec_len = len(executable)
-        true_exec_len = len(true_exec)
-        pid_len = len(pid_pgid)
-
-        intervals = []
-        for match in pattern.finditer(target):
-            s, e = match.start() - path_len, match.end() - path_len
-            if s >= e or e <= 0:
-                continue
-            s = max(0, s)
-
-            # Map the match intervals found in true_exec back onto the potentially 
-            # truncated executable string rendered by pstree.
-            if s < true_exec_len:
-                left_start = s
-                left_end = min(e, true_exec_len)
-                if left_start < exec_len:
-                    clamped_end = min(left_end, exec_len)
-                    intervals.append((prefix_len + left_start, prefix_len + clamped_end))
-            
-            # Map matches in args_text, cleanly leaping over the inserted pid_pgid string.
-            if e > true_exec_len:
-                right_start = max(s, true_exec_len)
-                arg_s = right_start - true_exec_len
-                arg_e = e - true_exec_len
-                intervals.append((prefix_len + exec_len + pid_len + arg_s, 
-                                  prefix_len + exec_len + pid_len + arg_e))
-
-        if not intervals:
+            for i in range(0, len(parts), 2):
+                parts[i] = pattern.sub(r'\033[7m\g<0>\033[27m', parts[i])
             out.append("".join(parts))
             continue
 
-        res = []
-        plain_idx = 0
-        for i, part in enumerate(parts):
-            if i % 2 != 0:
-                res.append(part)
-            else:
-                for char in part:
-                    for strt, end in intervals:
-                        if plain_idx == strt:
-                            res.append('\033[7m')
-                        if plain_idx == end:
-                            res.append('\033[27m')
-                    res.append(char)
-                    plain_idx += 1
-                    
-        for strt, end in intervals:
-            if plain_idx == end:
-                res.append('\033[27m')
-                
-        out.append("".join(res))
+        p = procs.get(pid)
+        if not p:
+            out.append("".join(parts))
+            continue
+
+        prefix_len = len(prefix)
+        exec_len = len(executable)
+        pid_len = len(pid_pgid)
+        args_start = prefix_len + exec_len + pid_len
+        intervals: list[tuple[int, int]] = []
+
+        # pstree shows comm as the executable, but comm is truncated to 15 chars
+        # (TASK_COMM_LEN). Find the longest name whose basename starts with the
+        # displayed executable — that's the untruncated version we match against,
+        # mapping highlight intervals back onto the truncated display.
+        true_exec = executable
+        true_exec_path = ""
+        for name in p.names:
+            bn = os.path.basename(name)
+            if len(bn) >= len(executable) and bn[:len(executable)] == executable and len(bn) > len(true_exec):
+                true_exec = bn
+                true_exec_path = name[:-len(bn)] if "/" in name else ""
+
+        if match_path:
+            exec_target = true_exec_path + true_exec
+            path_len = len(true_exec_path)
+        else:
+            exec_target = true_exec
+            path_len = 0
+
+        true_exec_len = len(true_exec)
+        for mat in pattern.finditer(exec_target):
+            s, e = mat.start() - path_len, mat.end() - path_len
+            if s >= e or e <= 0:
+                continue
+            s = max(0, s)
+            if s < true_exec_len and s < exec_len:
+                intervals.append((prefix_len + s, prefix_len + min(min(e, true_exec_len), exec_len)))
+
+        # For interpreter scripts, also highlight pattern matches within argv[1]
+        # (the script path) in the args portion of the pstree line.
+        argv = p.args.split()
+        is_interp = (len(argv) > 1 and
+                     INTERPRETERS.match(os.path.basename(p.exe if p.exe != "-" else "")))
+        if is_interp:
+            script_path = argv[1]
+            if not script_path.startswith("-"):
+                script_idx = args_text.find(script_path)
+                if script_idx >= 0:
+                    if match_path:
+                        script_target = script_path
+                        target_offset = 0
+                    else:
+                        script_bn = os.path.basename(script_path)
+                        script_target = script_bn
+                        target_offset = len(script_path) - len(script_bn)
+                    for mat in pattern.finditer(script_target):
+                        intervals.append((args_start + script_idx + target_offset + mat.start(),
+                                          args_start + script_idx + target_offset + mat.end()))
+
+        if intervals:
+            out.append(_apply_intervals(parts, intervals))
+        else:
+            # The process matched (e.g. via argv[0]="python3") but nothing in
+            # the pstree line is highlightable. Inject "[matched_name]" after
+            # the pid to show why this process was included.
+            # names ordering ensures argv[0] is preferred over exe.
+            inject_name = None
+            for name in p.names:
+                if _match_name(name, pattern, match_path):
+                    inject_name = os.path.basename(name)
+                    break
+            if inject_name:
+                highlighted = pattern.sub(r'\033[7m\g<0>\033[27m', inject_name)
+                _splice_into_parts(parts, args_start, f"[{highlighted}]")
+            out.append("".join(parts))
 
     return "".join(out)
 
 
 def parse_ps_output() -> dict[int, Proc]:
     proc = subprocess.Popen(
-        ["ps", "--no-headers", "-ww", "-eo", "pid,ppid,comm,args"],
+        ["ps", "--no-headers", "-ww", "-eo", "pid,ppid,comm,exe,args"],
         stdout=subprocess.PIPE, text=True,
     )
     stdout, _ = proc.communicate()
@@ -159,18 +229,53 @@ def parse_ps_output() -> dict[int, Proc]:
 
     procs: dict[int, Proc] = {}
     for line in stdout.splitlines():
-        parts = line.split(None, 3)
-        if len(parts) < 4:
+        parts = line.split(None, 4)
+        if len(parts) < 5:
             continue
         try:
-            pid, ppid, comm, args = int(parts[0]), int(parts[1]), parts[2], parts[3]
+            pid, ppid = int(parts[0]), int(parts[1])
+            comm, exe, args = parts[2], parts[3], parts[4]
         except ValueError:
             continue
         # Some processes (e.g. Electron/Chromium children) report argv[0] as
         # /proc/self/exe instead of the real executable path.
         if args.startswith("/proc/self/exe"):
             args = comm + args.removeprefix("/proc/self/exe")
-        procs[pid] = Proc(pid, ppid, args)
+
+        # Build candidate names in priority order. A process can be known by
+        # several names: argv[0] (what it was launched as), exe (real binary,
+        # with symlinks resolved), comm (kernel name, often the script name for
+        # shebang scripts), and argv[1] (the script path for interpreters).
+        argv = args.split()
+        names: list[str] = []
+        seen: set[str] = set()
+
+        for candidate in [argv[0] if argv else "", exe]:
+            if not candidate or candidate == "-":
+                continue
+            if candidate not in seen:
+                seen.add(candidate)
+                names.append(candidate)
+
+        if comm not in seen:
+            seen.add(comm)
+            names.append(comm)
+
+        if len(argv) > 1 and INTERPRETERS.match(os.path.basename(exe if exe != "-" else argv[0])):
+            script = argv[1]
+            if not script.startswith("-") and script not in seen:
+                seen.add(script)
+                names.append(script)
+
+        # bash -c "blaze run ..." / "bazel run ...": ps joins args with spaces
+        # so argv[2] is just the first word of the command string.
+        if (len(argv) >= 3 and os.path.basename(argv[0]) in ("bash", "sh")
+                and argv[1] == "-c" and argv[2] in ("blaze", "bazel")
+                and argv[2] not in seen):
+            seen.add(argv[2])
+            names.append(argv[2])
+
+        procs[pid] = Proc(pid, ppid, comm, exe, args, names)
             
     procs.pop(proc.pid, None)
     return procs
@@ -184,15 +289,14 @@ def find_matches(procs: dict[int, Proc], pattern: re.Pattern[str], full: bool, m
             continue
             
         if full:
-            target = p.args
+            if pattern.search(p.args):
+                matched.add(p.pid)
         else:
-            # First word is the executable path
-            exec_path = p.args.split()[0] if p.args.strip() else ""
-            target = exec_path if match_path else os.path.basename(exec_path)
-            
-        if pattern.search(target):
-            matched.add(p.pid)
-                
+            for name in p.names:
+                if _match_name(name, pattern, match_path):
+                    matched.add(p.pid)
+                    break
+
     return matched
 
 
@@ -277,7 +381,7 @@ def main() -> None:
     for i, (pid, tree) in enumerate(zip(roots, trees)):
         if i:
             print(flush=True)
-        highlighted_args = highlight_args(procs[pid].args, pattern, args.full, args.path)
+        highlighted_args = highlight_args(procs[pid].args, pattern, args.full, args.path, procs[pid].names)
         print(f"\033[1m=== PID {pid}: {highlighted_args} ===\033[0m", flush=True)
         sys.stdout.write(tree)
         sys.stdout.flush()
