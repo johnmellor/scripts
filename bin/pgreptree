@@ -313,10 +313,13 @@ def disjoint_roots(procs: dict[int, Proc], matched: set[int]) -> list[int]:
     return sorted(roots)
 
 
-def get_tree(pid: int, pattern: re.Pattern[str], full: bool, match_path: bool, procs: dict[int, Proc]) -> str:
-    res = subprocess.run([
-        "pstree", "-hlUTg", "-C", "age", "-p", "--arguments", str(pid),
-    ], capture_output=True, text=True)
+def get_tree(pid: int, pattern: re.Pattern[str], full: bool, match_path: bool, procs: dict[int, Proc],
+             ancestors: bool = False) -> str:
+    cmd = ["pstree", "-hlUTg", "-C", "age", "-p", "--arguments"]
+    if ancestors:
+        cmd.append("-s")
+    cmd.append(str(pid))
+    res = subprocess.run(cmd, capture_output=True, text=True)
 
     return highlight_pstree(res.stdout, pattern, full, match_path, procs)
 
@@ -325,17 +328,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="grep for processes, then show their trees",
     )
-    parser.add_argument("pattern", help="regex to match against process args")
+    parser.add_argument("pattern", help="regex to match against process names")
     parser.add_argument(
-        "-I", "--case", action="store_true",
-        help="case-sensitive matching (default is case-insensitive)",
+        "-i", "--ignore-case", action="store_true",
+        help="case-insensitive matching (default is case-sensitive)",
     )
     parser.add_argument(
         "-w", "--word", action="store_true",
         help="match whole words only"
     )
     parser.add_argument(
-        "-f", "--full", action="store_true",
+        "-f", "--cmdline", action="store_true",
         help="match against full command line instead of just the executable name "
              "(implicitly enabled if pattern contains a space)"
     )
@@ -348,14 +351,18 @@ def main() -> None:
         help="match against full executable path instead of basename "
              "(implicitly enabled if pattern contains '/')"
     )
+    parser.add_argument(
+        "-a", "--ancestors", action="store_true",
+        help="show ancestor processes from init/systemd down to each match"
+    )
     args = parser.parse_args()
 
     if " " in args.pattern:
-        args.full = True
+        args.cmdline = True
     if "/" in args.pattern:
         args.path = True
 
-    flags = 0 if args.case else re.IGNORECASE
+    flags = re.IGNORECASE if args.ignore_case else 0
     
     pattern_str = args.pattern
     if args.word:
@@ -369,19 +376,19 @@ def main() -> None:
         parser.error(f"bad regex: {e}")
 
     procs = parse_ps_output()
-    matched = find_matches(procs, pattern, args.full, args.path)
+    matched = find_matches(procs, pattern, args.cmdline, args.path)
     if not matched:
         sys.exit(1)
 
     roots = disjoint_roots(procs, matched)
     
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        trees = list(executor.map(lambda p: get_tree(p, pattern, args.full, args.path, procs), roots))
+        trees = list(executor.map(lambda p: get_tree(p, pattern, args.cmdline, args.path, procs, args.ancestors), roots))
 
     for i, (pid, tree) in enumerate(zip(roots, trees)):
         if i:
             print(flush=True)
-        highlighted_args = highlight_args(procs[pid].args, pattern, args.full, args.path, procs[pid].names)
+        highlighted_args = highlight_args(procs[pid].args, pattern, args.cmdline, args.path, procs[pid].names)
         print(f"\033[1m=== PID {pid}: {highlighted_args} ===\033[0m", flush=True)
         sys.stdout.write(tree)
         sys.stdout.flush()
