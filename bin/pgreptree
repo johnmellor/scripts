@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """pgreptree — grep for processes, show their trees.
 
-Matches a regex against all running process command lines, finds the
-topmost (disjoint root) matches — i.e. matched processes whose ancestors
-don't also match — and runs pstree on each one.
+Matches a regex against all running process names (or full command lines),
+runs a single system-wide pstree, and filters the output to show only
+matched processes and their ancestors, with ⋮ for elided subtrees.
 """
 
 import argparse
-import concurrent.futures
 import os
 import re
 import subprocess
@@ -48,37 +47,15 @@ ANSI_RE = re.compile(
 )
 
 
+# Characters used as tree-drawing prefixes in pstree -U output.
+TREE_CHARS = frozenset(' \t│├└─')
+
+
 def _match_name(name: str, pattern: re.Pattern[str], match_path: bool) -> bool:
     target = name if match_path else os.path.basename(name)
     return bool(pattern.search(target))
 
 
-def highlight_args(args: str, pattern: re.Pattern[str], full: bool, match_path: bool,
-                   names: list[str]) -> str:
-    """Highlight pattern matches in the header line (=== PID ...: args ===)."""
-    if full:
-        return pattern.sub(r'\033[7m\g<0>\033[27m', args)
-
-    for name in names:
-        target = name if match_path else os.path.basename(name)
-        if not pattern.search(target):
-            continue
-
-        idx = args.find(name)
-        if idx == -1:
-            bn = os.path.basename(name)
-            idx = args.find(bn)
-            if idx == -1:
-                continue
-            name = bn
-
-        before = args[:idx]
-        target = name if match_path else os.path.basename(name)
-        target_start = idx if match_path else idx + len(name) - len(target)
-        highlighted = pattern.sub(r'\033[7m\g<0>\033[27m', target)
-        return args[:target_start] + highlighted + args[idx + len(name):]
-
-    return args
 
 
 def _apply_intervals(parts: list[str], intervals: list[tuple[int, int]]) -> str:
@@ -300,28 +277,133 @@ def find_matches(procs: dict[int, Proc], pattern: re.Pattern[str], full: bool, m
     return matched
 
 
-def disjoint_roots(procs: dict[int, Proc], matched: set[int]) -> list[int]:
-    roots = []
-    for pid in matched:
-        cur = procs[pid].ppid
-        while cur in procs:
-            if cur in matched:
-                break
-            cur = procs[cur].ppid
+def _parse_tree_line(plain: str) -> tuple[int, int | None]:
+    """Extract depth and PID from a plain-text (ANSI-stripped) pstree line.
+
+    In pstree -U output each depth level occupies 4 columns of tree-drawing
+    prefix.  The process name starts at column ``depth * 4`` (0 for the root).
+    """
+    name_start = 0
+    for ch in plain:
+        if ch in TREE_CHARS:
+            name_start += 1
         else:
-            roots.append(pid)
-    return sorted(roots)
+            break
+    depth = name_start // 4 if name_start > 0 else 0
+
+    rest = plain[name_start:]
+    if rest.startswith('('):
+        m = re.match(r'\([^)]+\),(\d+),', rest)
+    else:
+        m = re.match(r'[^,]+,(\d+),', rest)
+    return depth, int(m.group(1)) if m else None
 
 
-def get_tree(pid: int, pattern: re.Pattern[str], full: bool, match_path: bool, procs: dict[int, Proc],
-             ancestors: bool = False) -> str:
-    cmd = ["pstree", "-hlUTg", "-C", "age", "-p", "--arguments"]
-    if ancestors:
-        cmd.append("-s")
-    cmd.append(str(pid))
-    res = subprocess.run(cmd, capture_output=True, text=True)
+def _build_ellipsis(depth: int, continuation: dict[int, bool]) -> str:
+    """Build a ``⋮`` line at *depth* using the current continuation state.
 
-    return highlight_pstree(res.stdout, pattern, full, match_path, procs)
+    Each ancestor level gets ``│`` if it still has visible siblings below,
+    otherwise a space.  The final position gets ``⋮``.
+    """
+    parts: list[str] = []
+    for k in range(1, depth):
+        parts.append('  ')
+        parts.append('│' if continuation.get(k, False) else ' ')
+        parts.append(' ')
+    parts.append('  ⋮\n')
+    return ''.join(parts)
+
+
+def _strip_ansi(s: str) -> str:
+    return ANSI_RE.sub('', s)
+
+
+def filter_tree(stdout: str, matched: set[int],
+                pattern: re.Pattern[str], full: bool, match_path: bool,
+                procs: dict[int, Proc]) -> str:
+    """Filter full-system pstree output to matched processes and ancestors.
+
+    Shows matched processes, all their ancestors, and all their descendants.
+    Elided subtrees are replaced with a ``⋮`` line at the appropriate depth.
+    Pattern matches are highlighted with reverse-video.
+    """
+    lines = stdout.splitlines(keepends=True)
+    if not lines:
+        return ''
+
+    # --- Parse every line ------------------------------------------------
+    stripped = [_strip_ansi(line.rstrip('\n')) for line in lines]
+    parsed = [_parse_tree_line(s) for s in stripped]  # (depth, pid)
+    n = len(parsed)
+
+    # --- Mark matched lines ---------------------------------------------
+    show = [False] * n
+    for i, (_, pid) in enumerate(parsed):
+        if pid is not None and pid in matched:
+            show[i] = True
+
+    # --- Forward pass: mark descendants of matched processes ------------
+    # If a matched process is at depth d, all immediately following lines
+    # at depth > d are descendants and should be shown.
+    parent_depth = -1  # depth of the most recent matched ancestor
+    for i in range(n):
+        depth = parsed[i][0]
+        if show[i]:
+            parent_depth = depth
+        elif parent_depth >= 0 and depth > parent_depth:
+            show[i] = True
+        else:
+            parent_depth = -1  # left the subtree
+
+    # --- Backward pass: propagate "needs ancestor" up the tree ----------
+    needs_parent_at: set[int] = set()
+    for i in range(n - 1, -1, -1):
+        depth = parsed[i][0]
+        if show[i] or depth in needs_parent_at:
+            show[i] = True
+            needs_parent_at.discard(depth)
+            if depth > 0:
+                needs_parent_at.add(depth - 1)
+        # Prune entries from deeper subtrees we have passed over.
+        needs_parent_at = {d for d in needs_parent_at if d < depth}
+
+    # --- Forward pass: emit visible lines with ⋮ for gaps ---------------
+    result: list[str] = []
+    continuation: dict[int, bool] = {}  # depth -> has-more-siblings
+    gap = False
+    gap_min_depth = 0
+
+    for i in range(n):
+        depth = parsed[i][0]
+        plain = stripped[i]
+
+        # Track continuation state (├ = more siblings, └ = last child).
+        if depth > 0:
+            connector_pos = depth * 4 - 2
+            if connector_pos < len(plain):
+                continuation[depth] = (plain[connector_pos] == '├')
+        for k in list(continuation):
+            if k > depth:
+                del continuation[k]
+
+        if show[i]:
+            if gap and gap_min_depth > 0:
+                result.append(_build_ellipsis(gap_min_depth, continuation))
+            result.append(
+                highlight_pstree(lines[i], pattern, full, match_path, procs))
+            gap = False
+        else:
+            if not gap:
+                gap_min_depth = depth
+            else:
+                gap_min_depth = min(gap_min_depth, depth)
+            gap = True
+
+    # Replace │ with ⋮ on the last line to show the tree continues beyond.
+    if result:
+        result[-1] = result[-1].replace('│', '⋮')
+
+    return ''.join(result)
 
 
 def main() -> None:
@@ -351,10 +433,6 @@ def main() -> None:
         help="match against full executable path instead of basename "
              "(implicitly enabled if pattern contains '/')"
     )
-    parser.add_argument(
-        "-a", "--ancestors", action="store_true",
-        help="show ancestor processes from init/systemd down to each match"
-    )
     args = parser.parse_args()
 
     if " " in args.pattern:
@@ -363,13 +441,13 @@ def main() -> None:
         args.path = True
 
     flags = re.IGNORECASE if args.ignore_case else 0
-    
+
     pattern_str = args.pattern
     if args.word:
         pattern_str = rf"(?:\b|_)(?:{pattern_str})(?:\b|_)"
     if args.exact:
         pattern_str = rf"^(?:{pattern_str})$"
-        
+
     try:
         pattern = re.compile(pattern_str, flags)
     except re.error as e:
@@ -380,18 +458,15 @@ def main() -> None:
     if not matched:
         sys.exit(1)
 
-    roots = disjoint_roots(procs, matched)
-    
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        trees = list(executor.map(lambda p: get_tree(p, pattern, args.cmdline, args.path, procs, args.ancestors), roots))
+    res = subprocess.run(
+        ['pstree', '-hlUTg', '-C', 'age', '-p', '--arguments'],
+        capture_output=True, text=True,
+    )
 
-    for i, (pid, tree) in enumerate(zip(roots, trees)):
-        if i:
-            print(flush=True)
-        highlighted_args = highlight_args(procs[pid].args, pattern, args.cmdline, args.path, procs[pid].names)
-        print(f"\033[1m=== PID {pid}: {highlighted_args} ===\033[0m", flush=True)
-        sys.stdout.write(tree)
-        sys.stdout.flush()
+    filtered = filter_tree(
+        res.stdout, matched, pattern, args.cmdline, args.path, procs)
+    sys.stdout.write(filtered)
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":
