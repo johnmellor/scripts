@@ -264,7 +264,11 @@ def find_matches(procs: dict[int, Proc], pattern: re.Pattern[str], full: bool, m
     for p in procs.values():
         if p.pid == my_pid:
             continue
-            
+
+        if pattern.fullmatch(str(p.pid)):
+            matched.add(p.pid)
+            continue
+
         if full:
             if pattern.search(p.args):
                 matched.add(p.pid)
@@ -410,7 +414,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="grep for processes, then show their trees",
     )
-    parser.add_argument("pattern", help="regex to match against process names")
+    parser.add_argument("pattern", help="regex to match against process names/PIDs")
     parser.add_argument(
         "-i", "--ignore-case", action="store_true",
         help="case-insensitive matching (default is case-sensitive)",
@@ -426,7 +430,8 @@ def main() -> None:
     )
     parser.add_argument(
         "-x", "--exact", action="store_true",
-        help="require an exact match of the executable (or full command line if -f)"
+        help="require exact match of the executable name, or full command line if -f "
+             "(PIDs are always matched exactly)"
     )
     parser.add_argument(
         "-p", "--path", action="store_true",
