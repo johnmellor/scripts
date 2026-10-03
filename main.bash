@@ -410,25 +410,51 @@ grc() {
     fi
 }
 
+_g_has_in_progress_operation() {
+    local git_dir
+    git_dir=$(git rev-parse --git-dir 2>/dev/null) || return $?
+
+    [[ -e "$git_dir/CHERRY_PICK_HEAD" ||
+       -e "$git_dir/REVERT_HEAD" ||
+       -e "$git_dir/MERGE_HEAD" ||
+       -d "$git_dir/rebase-merge" ||
+       -d "$git_dir/rebase-apply" ]]
+}
+
 g-continue() {
-    if [[ -e $(git rev-parse --git-dir)/CHERRY_PICK_HEAD ]]; then
+    local git_dir
+    git_dir=$(git rev-parse --git-dir 2>/dev/null) || return $?
+
+    if [[ -e "$git_dir/CHERRY_PICK_HEAD" ]]; then
         git cherry-pick --continue
-    elif [[ -e $(git rev-parse --git-dir)/REVERT_HEAD ]]; then
+    elif [[ -e "$git_dir/REVERT_HEAD" ]]; then
         git revert --continue
-    elif [[ -d $(git rev-parse --git-dir)/rebase-merge || -d $(git rev-parse --git-dir)/rebase-apply ]]; then
+    elif [[ -e "$git_dir/MERGE_HEAD" ]]; then
+        git merge --continue
+    elif [[ -d "$git_dir/rebase-merge" || -d "$git_dir/rebase-apply" ]]; then
         grc
     else
-        echo "No rebase, cherry-pick or revert in progress!" >&2
+        echo "No merge, rebase, cherry-pick or revert in progress!" >&2
         return 69  # Custom exit code so g-merge-loop can distinguish this case.
     fi
 }
 
-# Runs `git mergetool || g-continue` until merge conflicts are resolved.
+# Runs `git mergetool` for unresolved paths, then `g-continue`, until the
+# current Git operation completes.
 g-merge-loop() {
+    local previous_status=$?
+
+    if ! _g_has_in_progress_operation; then
+        return "$previous_status"
+    fi
+
     for ((i = 0; i < 1000; i++)); do
-        git mergetool || return 1
+        if [[ -n $(git ls-files -u) ]]; then
+            git mergetool || return $?
+        fi
+
         g-continue && return 0
-        if (($? == 69)); then return 69; fi
+        if (($? == 69)); then return "$previous_status"; fi
     done
     echo "${FUNCNAME[0]} giving up after 1000 iterations :-(" >&2
     return 1
