@@ -12,7 +12,11 @@ export PROMPT_COMMAND="history -a"
 export PAGER='less'
 export LESS='-FR'
 
-export EDITOR='subl --wait'
+# Allows VS Code to override this default editor:
+# https://frederic-hemberger.de/notes/overriding-default-editor-in-visual-studio-code-s-terminal/
+if [[ -z "$EDITOR" ]]; then
+    export EDITOR='subl --wait'
+fi
 
 
 # MISC
